@@ -23,6 +23,7 @@ async function run(fn: () => Promise<string>): Promise<FormState> {
     if (e instanceof ValidationError) return { ok: false, message: e.message };
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes("duplicate key") && msg.includes("phone")) return { ok: false, message: "A farmer with this phone already exists." };
+    if (msg.includes("INSUFFICIENT_STOCK")) return { ok: false, message: "Not enough stock left on this listing to confirm this order." };
     console.error(e);
     return { ok: false, message: "Could not save. Please try again." };
   }
@@ -77,16 +78,35 @@ export async function updateListing(fd: FormData): Promise<void> {
   revalidatePath("/listings");
 }
 
-export async function updateOrder(fd: FormData): Promise<void> {
-  const id = uuid(fd, "id");
-  const patch = {
-    status: orderStatus(fd, "status"),
-    agreed_total_kes: optionalInt(fd, "agreed_total_kes"),
-    commission_kes: optionalInt(fd, "commission_kes"),
-  };
-  const supabase = await requireAdmin();
-  const { error } = await supabase.from("orders").update(patch).eq("id", id);
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/orders");
-  revalidatePath("/admin");
+export async function updateOrder(_prev: FormState, fd: FormData): Promise<FormState> {
+  return run(async () => {
+    const id = uuid(fd, "id");
+    const patch = {
+      status: orderStatus(fd, "status"),
+      agreed_total_kes: optionalInt(fd, "agreed_total_kes"),
+      commission_kes: optionalInt(fd, "commission_kes"), // blank → auto-calculated by DB trigger
+    };
+    const supabase = await requireAdmin();
+    const { error } = await supabase.from("orders").update(patch).eq("id", id);
+    if (error) throw new Error(error.message);
+    revalidatePath("/admin/orders");
+    revalidatePath("/admin/listings");
+    revalidatePath("/admin");
+    revalidatePath("/listings");
+    return "Saved.";
+  });
+}
+
+export async function updateCommissionRate(_prev: FormState, fd: FormData): Promise<FormState> {
+  return run(async () => {
+    const percent = num(fd, "commission_percent", { min: -0.0001, max: 50 });
+    const supabase = await requireAdmin();
+    const { error } = await supabase
+      .from("settings")
+      .update({ commission_rate: Math.round(percent * 100) / 10000 })
+      .eq("id", true);
+    if (error) throw new Error(error.message);
+    revalidatePath("/admin");
+    return `Commission set to ${percent}%. Applies to new agreed totals.`;
+  });
 }

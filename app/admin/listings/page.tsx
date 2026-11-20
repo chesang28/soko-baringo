@@ -1,13 +1,19 @@
 import { ActionForm } from "@/components/ActionForm";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SubmitButton } from "@/components/SubmitButton";
-import { formatKes } from "@/lib/format";
+import { formatDate, formatKes } from "@/lib/format";
 import { getProducts } from "@/lib/queries";
 import { createClient } from "@/lib/supabase/server";
 import { LISTING_STATUSES, UNITS, type Listing } from "@/lib/types";
 import { createListing, updateListing } from "../actions";
 
-type Row = Listing & { farmers: { full_name: string } | null };
+type Row = Omit<Listing, "products"> & {
+  updated_at: string;
+  products: { name: string; shelf_life_days: number } | null;
+  farmers: { full_name: string } | null;
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default async function AdminListingsPage() {
   const supabase = await createClient();
@@ -15,7 +21,7 @@ export default async function AdminListingsPage() {
     getProducts(),
     supabase.from("farmers").select("id, full_name, ward").order("full_name"),
     supabase.from("listings")
-      .select("id, quantity, unit, price_per_unit_kes, location, status, products(name), farmers(full_name)")
+      .select("id, quantity, unit, price_per_unit_kes, location, status, updated_at, products(name, shelf_life_days), farmers(full_name)")
       .order("created_at", { ascending: false }).limit(200),
   ]);
   const farmers = farmersRes.data ?? [];
@@ -54,13 +60,22 @@ export default async function AdminListingsPage() {
       </ActionForm>
 
       <div className="card overflow-x-auto">
-        <h2 className="mb-3 font-semibold">Listings</h2>
+        <h2 className="font-semibold">Listings</h2>
+        <p className="mb-3 text-xs text-gray-500">Unsold listings expire automatically after their shelf life. Click Save on a listing to renew it.</p>
         <table className="w-full text-left text-sm">
           <thead className="text-gray-500"><tr><th className="py-2">Product</th><th>Farmer</th><th>Price</th><th>Status</th><th>Update</th></tr></thead>
           <tbody className="divide-y">
             {listings.map((l) => (
               <tr key={l.id}>
-                <td className="py-2 font-medium">{l.products?.name}<div className="text-xs text-gray-500">{l.location}</div></td>
+                <td className="py-2 font-medium">
+                  {l.products?.name}
+                  <div className="text-xs text-gray-500">{l.location}</div>
+                  {l.status === "available" && l.products && (
+                    <div className="text-xs text-gray-400">
+                      expires {formatDate(new Date(new Date(l.updated_at).getTime() + l.products.shelf_life_days * DAY_MS).toISOString())}
+                    </div>
+                  )}
+                </td>
                 <td>{l.farmers?.full_name}</td>
                 <td>{formatKes(l.price_per_unit_kes)}/{l.unit}</td>
                 <td><StatusBadge status={l.status} /></td>

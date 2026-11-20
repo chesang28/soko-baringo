@@ -1,7 +1,7 @@
 export const UNITS = ["kg", "crate", "litre", "piece", "bag", "tonne"] as const;
 export type Unit = (typeof UNITS)[number];
 
-export const LISTING_STATUSES = ["available", "reserved", "sold_out", "withdrawn"] as const;
+export const LISTING_STATUSES = ["available", "reserved", "sold_out", "withdrawn", "expired"] as const;
 export type ListingStatus = (typeof LISTING_STATUSES)[number];
 
 export const ORDER_STATUSES = ["new", "contacted", "confirmed", "delivered", "paid", "cancelled"] as const;

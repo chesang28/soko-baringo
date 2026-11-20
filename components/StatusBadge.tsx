@@ -3,6 +3,7 @@ const styles: Record<string, string> = {
   reserved: "bg-yellow-100 text-yellow-800",
   sold_out: "bg-gray-200 text-gray-700",
   withdrawn: "bg-gray-200 text-gray-500",
+  expired: "bg-orange-100 text-orange-800",
   new: "bg-blue-100 text-blue-800",
   contacted: "bg-indigo-100 text-indigo-800",
   confirmed: "bg-yellow-100 text-yellow-800",
