@@ -169,6 +169,14 @@ export function OrderCard({ b }: { b: OrderBalance }) {
         <summary className="cursor-pointer text-gray-500">More: edit, invoice, cancel</summary>
         <div className="mt-2 space-y-3 rounded-lg bg-gray-50 p-3">
           {b.status !== "new" && b.status !== "cancelled" && <a className="btn-ghost" href={`/admin/orders/${b.order_id}/invoice`}>🧾 Invoice</a>}
+          {(b.status === "delivered" || b.status === "paid") && (
+            <ActionForm action={markDelivered} resetOnSuccess={false} className="space-y-2 rounded-lg bg-white p-3 ring-1 ring-gray-200">
+              <p className="text-xs font-semibold text-gray-600">Change delivery details (e.g. add a driver you paid)</p>
+              <input type="hidden" name="id" value={b.order_id} />
+              <DeliveryFields defaultFee={b.delivery_fee_kes} initial={{ method: b.delivery_method, name: b.driver_name, phone: b.driver_phone, cost: b.transport_cost_kes }} />
+              <SubmitButton className="btn-ghost">Save delivery details</SubmitButton>
+            </ActionForm>
+          )}
           <ActionForm action={updateOrder} resetOnSuccess={false}>
             <input type="hidden" name="id" value={b.order_id} />
             <div className="flex flex-wrap items-end gap-2">
