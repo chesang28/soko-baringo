@@ -444,3 +444,40 @@ export async function repeatOrder(_prev: FormState, fd: FormData): Promise<FormS
     return `Repeat order ${orderRef(created.id)} created (${p.quantity} ${p.listings.unit} @ ${formatKes(listing.price_per_unit_kes)} from ${listing.location}). It's in Orders → To do.`;
   });
 }
+
+// ─── Turn a buyer-request match into an order ──────────────────────────
+export async function createOrderFromNeed(_prev: FormState, fd: FormData): Promise<FormState> {
+  return run(async () => {
+    const needId = uuid(fd, "need_id");
+    const listingId = uuid(fd, "listing_id");
+    const quantity = num(fd, "quantity", { max: 10_000_000 });
+    const supabase = await requireAdmin();
+    const [{ data: need }, { data: listing }] = await Promise.all([
+      supabase.from("buyer_needs").select("buyer_name, buyer_phone, buyer_org, quantity, unit, location, note, status").eq("id", needId).single(),
+      supabase.from("listings").select("quantity, unit, status, price_per_unit_kes").eq("id", listingId).single(),
+    ]);
+    if (!need || need.status !== "open") throw new ValidationError("This buyer request is no longer open.");
+    if (!listing || listing.status !== "available") throw new ValidationError("That listing is no longer available.");
+    if (quantity > Number(listing.quantity)) throw new ValidationError(`Only ${listing.quantity} ${listing.unit} available on that listing.`);
+
+    // Already-ordered quantity from this request (tracked via the note tag).
+    const tag = `[need:${needId.slice(0, 8)}]`;
+    const { data: prior } = await supabase.from("orders").select("quantity").like("note", `%${tag}%`).neq("status", "cancelled");
+    const orderedBefore = (prior ?? []).reduce((s, o) => s + Number(o.quantity), 0);
+
+    const note = [`Delivery to ${need.location}`, need.note, tag].filter(Boolean).join(" · ").slice(0, 500);
+    const { data: created, error } = await supabase.from("orders").insert({
+      listing_id: listingId, buyer_name: need.buyer_name, buyer_phone: need.buyer_phone, buyer_org: need.buyer_org, quantity, note,
+    }).select("id").single();
+    if (error) throw new Error(error.message);
+
+    const covered = orderedBefore + quantity >= Number(need.quantity);
+    if (covered) await supabase.from("buyer_needs").update({ status: "matched" }).eq("id", needId);
+
+    revalidatePath("/admin/needs"); revalidatePath("/admin/orders"); revalidatePath("/admin"); revalidatePath("/needs");
+    const remaining = Math.max(Number(need.quantity) - orderedBefore - quantity, 0);
+    return `Order ${orderRef(created.id)} created for ${need.buyer_name}: ${quantity} ${listing.unit} @ ${formatKes(listing.price_per_unit_kes)}. ` +
+      (covered ? "Request fully covered and marked matched ✓" : `${remaining} ${need.unit} still needed. The request stays open.`) +
+      " Find it in Orders → To do.";
+  });
+}

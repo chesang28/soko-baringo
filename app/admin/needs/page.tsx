@@ -1,8 +1,9 @@
+import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { displayPhone, formatDate, formatKes, formatQty, whatsappLink } from "@/lib/format";
 import { productVisual } from "@/lib/products";
 import { createClient } from "@/lib/supabase/server";
-import { markResponseHandled, updateNeedStatus } from "../actions";
+import { createOrderFromNeed, markResponseHandled, updateNeedStatus } from "../actions";
 
 type Need = {
   id: string; product_id: number; quantity: number; unit: string; max_price_kes: number | null; needed_by: string; location: string;
@@ -65,10 +66,26 @@ export default async function AdminNeedsPage({ searchParams }: { searchParams: P
               return n.status === "open" && matches.length > 0 && (
                 <div className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-sm">
                   <p className="font-semibold text-brand-800">🎯 In stock now ({matches.length})</p>
-                  <ul className="mt-1 space-y-0.5">
-                    {matches.map((l) => <li key={l.id}>• {formatQty(l.quantity)} {l.unit} @ {formatKes(l.price_per_unit_kes)} · {l.farmers?.full_name}, {l.location}</li>)}
+                  <ul className="mt-1 divide-y divide-brand-100">
+                    {matches.map((l) => (
+                      <li key={l.id} className="py-2">
+                        <p>• {formatQty(l.quantity)} {l.unit} @ {formatKes(l.price_per_unit_kes)} · {l.farmers?.full_name}, {l.location}
+                          {l.unit !== n.unit && <span className="ml-1 text-xs text-orange-700">(sold per {l.unit}, buyer asked in {n.unit})</span>}</p>
+                        <ActionForm action={createOrderFromNeed} resetOnSuccess={false} className="mt-1">
+                          <input type="hidden" name="need_id" value={n.id} />
+                          <input type="hidden" name="listing_id" value={l.id} />
+                          <div className="flex flex-wrap items-end gap-2">
+                            <label className="flex flex-col gap-1 text-xs text-gray-600">Quantity ({l.unit})
+                              <input className="input w-28 py-1 text-sm" name="quantity" type="number" min="0.01" step="0.01" max={Number(l.quantity)} required
+                                     defaultValue={Math.min(Number(l.quantity), Number(n.quantity))} />
+                            </label>
+                            <SubmitButton className="btn px-3 py-1.5 text-sm">🛒 Create order for {n.buyer_name.split(" ")[0]}</SubmitButton>
+                          </div>
+                        </ActionForm>
+                      </li>
+                    ))}
                   </ul>
-                  <p className="mt-1 text-xs text-gray-600">Call the buyer, then create the order from the listing page or ask them to request it on the site.</p>
+                  <p className="mt-1 text-xs text-gray-600">Call the buyer first to agree, then create the order. It goes to Orders → To do at Step 1.</p>
                 </div>
               );
             })()}
