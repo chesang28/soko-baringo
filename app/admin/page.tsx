@@ -12,7 +12,7 @@ export default async function AdminHome() {
   const head = { count: "exact", head: true } as const;
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  const [farmers, listings, newOrders, overdue, earnings, settings, recent, leads] = await Promise.all([
+  const [farmers, listings, newOrders, overdue, earnings, settings, recent, leads, needs, owner] = await Promise.all([
     supabase.from("farmers").select("id", head),
     supabase.from("listings").select("id", head).eq("status", "available"),
     supabase.from("orders").select("id", head).eq("status", "new"),
@@ -23,6 +23,8 @@ export default async function AdminHome() {
       .select("id, buyer_name, quantity, status, created_at, listings(unit, products(name))")
       .order("created_at", { ascending: false }).limit(8),
     supabase.from("farmer_leads").select("id", head).eq("handled", false),
+    supabase.from("need_responses").select("id", head).eq("handled", false),
+    supabase.rpc("is_owner"),
   ]);
 
   const earned = (earnings.data ?? []).reduce((s, o) => s + (o.commission_kes ?? 0), 0);
@@ -47,6 +49,12 @@ export default async function AdminHome() {
       {(leads.count ?? 0) > 0 && (
         <Link href="/admin/farmers" className="card block border-honey-400 bg-amber-50 font-medium text-amber-900">
           🌱 {leads.count} farmer{leads.count === 1 ? "" : "s"} asked to join. Call them →
+        </Link>
+      )}
+
+      {(needs.count ?? 0) > 0 && (
+        <Link href="/admin/needs" className="card block border-brand-600 bg-brand-50 font-medium text-brand-800">
+          🤝 {needs.count} new farmer offer{needs.count === 1 ? "" : "s"} on buyer requests. Match them →
         </Link>
       )}
 
@@ -78,7 +86,7 @@ export default async function AdminHome() {
         </ul>
       </div>
 
-      <ActionForm action={updateSettings} resetOnSuccess={false} className="card max-w-md space-y-3">
+      {owner.data && <ActionForm action={updateSettings} resetOnSuccess={false} className="card max-w-md space-y-3">
         <h2 className="font-semibold">Settings</h2>
         <div>
           <label className="label" htmlFor="commission_percent">Commission rate (%)</label>
@@ -91,7 +99,7 @@ export default async function AdminHome() {
           <p className="mt-1 text-xs text-gray-500">Shown as a &ldquo;Chat with us&rdquo; button on the public site. Leave blank to hide.</p>
         </div>
         <SubmitButton>Save settings</SubmitButton>
-      </ActionForm>
+      </ActionForm>}
     </div>
   );
 }

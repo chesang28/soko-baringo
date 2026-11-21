@@ -5,19 +5,27 @@ import type { DailyRevenue, OrderBalance, Payment } from "@/lib/types";
 
 export const metadata = { title: "Money" };
 
-type Totals = { sales: number; commission: number; cashIn: number; cashOut: number };
+type Totals = { sales: number; commission: number; cashIn: number; cashOut: number; fees: number; transport: number };
+const ZERO: Totals = { sales: 0, commission: 0, cashIn: 0, cashOut: 0, fees: 0, transport: 0 };
 const sum = (rows: DailyRevenue[]): Totals => rows.reduce(
-  (t, d) => ({ sales: t.sales + Number(d.sales_kes), commission: t.commission + Number(d.commission_kes), cashIn: t.cashIn + Number(d.cash_in_kes), cashOut: t.cashOut + Number(d.cash_out_kes) }),
-  { sales: 0, commission: 0, cashIn: 0, cashOut: 0 },
-);
+  (t, d) => ({
+    sales: t.sales + Number(d.sales_kes), commission: t.commission + Number(d.commission_kes),
+    cashIn: t.cashIn + Number(d.cash_in_kes), cashOut: t.cashOut + Number(d.cash_out_kes),
+    fees: t.fees + Number(d.delivery_fees_kes), transport: t.transport + Number(d.transport_cost_kes),
+  }), ZERO);
+const income = (t: Totals) => t.commission + t.fees - t.transport;
 
 export default async function MoneyPage() {
   const supabase = await createClient();
-  const [rev, bal, pay] = await Promise.all([
+  const [rev, bal, pay, agents, allRev] = await Promise.all([
     supabase.rpc("daily_revenue", { p_days: 62 }),
     supabase.from("order_balances").select("*").limit(2000),
     supabase.from("payments").select("id, order_id, direction, amount_kes, method, reference, paid_at").order("paid_at", { ascending: false }).limit(25),
+    supabase.from("agent_earnings").select("earned_kes, paid_kes"),
+    supabase.rpc("daily_revenue", { p_days: 400 }),
   ]);
+  const agentEarned = ((agents.data ?? []) as { earned_kes: number; paid_kes: number }[]).reduce((s, a) => s + a.earned_kes, 0);
+  const agentPaid = ((agents.data ?? []) as { earned_kes: number; paid_kes: number }[]).reduce((s, a) => s + a.paid_kes, 0);
   const days = ((rev.data ?? []) as DailyRevenue[]).map((d) => ({ ...d, sales_kes: Number(d.sales_kes), commission_kes: Number(d.commission_kes) }));
   const balances = (bal.data ?? []) as OrderBalance[];
   const payments = (pay.data ?? []) as Payment[];
@@ -29,11 +37,14 @@ export default async function MoneyPage() {
   const monthStart = today.slice(0, 8) + "01";
 
   const committed = balances.filter((b) => ["confirmed", "delivered", "paid"].includes(b.status));
+  const yearTransport = sum((allRev.data ?? []) as DailyRevenue[]).transport;
   const allTime: Totals = {
     sales: committed.reduce((s, b) => s + b.total_kes, 0),
     commission: committed.reduce((s, b) => s + b.commission_kes, 0),
     cashIn: balances.reduce((s, b) => s + b.received_kes, 0),
     cashOut: balances.reduce((s, b) => s + b.paid_out_kes, 0),
+    fees: committed.reduce((s, b) => s + b.delivery_fee_kes, 0),
+    transport: yearTransport,
   };
   const periods: [string, Totals][] = [
     ["Today", sum(days.filter((d) => d.day === today))],
@@ -63,7 +74,10 @@ export default async function MoneyPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Money</h1>
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-2xl font-bold">Money</h1>
+        <a href="/admin/money/export" className="btn-ghost">⬇ Export CSV</a>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="card border-l-4 border-l-brand-700">
@@ -75,8 +89,9 @@ export default async function MoneyPage() {
           <p className="mt-1 text-3xl font-bold">{formatKes(totalIOwe)}</p>
         </div>
         <div className="card border-l-4 border-l-gray-400">
-          <p className="text-sm text-gray-500">Cash in hand (received − paid out)</p>
-          <p className="mt-1 text-3xl font-bold">{formatKes(allTime.cashIn - allTime.cashOut)}</p>
+          <p className="text-sm text-gray-500">Cash in hand (received − paid to farmers & agents)</p>
+          <p className="mt-1 text-3xl font-bold">{formatKes(allTime.cashIn - allTime.cashOut - agentPaid)}</p>
+          {agentEarned - agentPaid > 0 && <p className="text-xs text-orange-700">You owe agents {formatKes(agentEarned - agentPaid)}</p>}
         </div>
       </div>
 
@@ -84,9 +99,12 @@ export default async function MoneyPage() {
         {periods.map(([label, t]) => (
           <div key={label} className="card">
             <p className="text-sm font-semibold text-gray-500">{label}</p>
-            <p className="mt-2 text-xs text-gray-500">Your commission</p>
-            <p className="text-2xl font-bold text-brand-700">{formatKes(t.commission)}</p>
+            <p className="mt-2 text-xs text-gray-500">Your income</p>
+            <p className="text-2xl font-bold text-brand-700">{formatKes(income(t))}</p>
             <dl className="mt-3 grid grid-cols-2 gap-x-2 gap-y-1 text-sm">
+              <dt className="text-gray-500">Commission</dt><dd className="text-right font-medium">{formatKes(t.commission)}</dd>
+              {(t.fees > 0 || t.transport > 0) && <><dt className="text-gray-500">Delivery fees</dt><dd className="text-right font-medium">{formatKes(t.fees)}</dd>
+              <dt className="text-gray-500">Transport cost</dt><dd className="text-right font-medium">−{formatKes(t.transport)}</dd></>}
               <dt className="text-gray-500">Sales</dt><dd className="text-right font-medium">{formatKes(t.sales)}</dd>
               <dt className="text-gray-500">Cash in</dt><dd className="text-right font-medium">{formatKes(t.cashIn)}</dd>
               <dt className="text-gray-500">Paid out</dt><dd className="text-right font-medium">{formatKes(t.cashOut)}</dd>
@@ -95,6 +113,7 @@ export default async function MoneyPage() {
         ))}
       </div>
 
+      <p className="-mt-3 text-xs text-gray-500">Your income = commission + delivery fees − truck costs (before paying agents their share). &ldquo;All time&rdquo; truck costs cover the last 12 months.</p>
       <div className="card">
         <h2 className="font-semibold">Daily sales, last 30 days</h2>
         <p className="mb-3 text-xs text-gray-500">Counted on the day an order is confirmed. Hover a bar for details.</p>

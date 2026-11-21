@@ -15,7 +15,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   const supabase = await createClient();
   let q = supabase
     .from("orders")
-    .select("id, listing_id, buyer_name, buyer_phone, buyer_org, quantity, note, status, agreed_total_kes, commission_kes, created_at, listings(unit, location, price_per_unit_kes, products(name))")
+    .select("id, listing_id, buyer_name, buyer_phone, buyer_org, quantity, note, status, agreed_total_kes, commission_kes, delivery_fee_kes, created_at, listings(unit, location, price_per_unit_kes, products(name))")
     .order("created_at", { ascending: false })
     .limit(200);
   if (overdueOnly) q = q.eq("status", "new").lt("created_at", new Date(Date.now() - DAY_MS).toISOString());
@@ -70,6 +70,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={o.status} />
                 <a className="btn-ghost" href={`tel:+${o.buyer_phone}`}>Call {displayPhone(o.buyer_phone)}</a>
+                {o.status !== "new" && o.status !== "cancelled" && <a className="btn-ghost" href={`/admin/orders/${o.id}/invoice`}>Invoice</a>}
                 <a className="btn-ghost" target="_blank" rel="noopener noreferrer"
                    href={whatsappLink(o.buyer_phone, `Hello ${o.buyer_name}, this is Soko Baringo about your request ${orderRef(o.id)} for ${item}.`)}>WhatsApp</a>
               </div>
@@ -77,7 +78,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
 
             {b && (
               <div className="mt-3 grid gap-2 rounded-lg bg-gray-50 p-3 text-sm sm:grid-cols-3">
-                <div><p className="text-xs text-gray-500">Total · your commission</p><p className="font-semibold">{formatKes(b.total_kes)} · <span className="text-brand-700">{formatKes(b.commission_kes)}</span></p></div>
+                <div><p className="text-xs text-gray-500">Total · your commission{b.delivery_fee_kes ? " · delivery" : ""}</p><p className="font-semibold">{formatKes(b.total_kes)} · <span className="text-brand-700">{formatKes(b.commission_kes)}</span>{b.delivery_fee_kes ? ` · ${formatKes(b.delivery_fee_kes)}` : ""}</p></div>
                 <div>
                   <p className="text-xs text-gray-500">Buyer paid</p>
                   <p className="font-semibold">{formatKes(b.received_kes)}{" "}
@@ -117,7 +118,10 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                   <label className="flex flex-col gap-1 text-xs text-gray-600">Total (KES)
                     <input className="input w-28 py-1 text-sm" name="agreed_total_kes" type="number" min="0" step="1" defaultValue={o.agreed_total_kes ?? ""} />
                   </label>
-                  <label className="flex flex-col gap-1 text-xs text-gray-600">Commission
+                  <label className="flex flex-col gap-1 text-xs text-gray-600">Delivery fee
+                    <input className="input w-24 py-1 text-sm" name="delivery_fee_kes" type="number" min="0" step="1" defaultValue={o.delivery_fee_kes ?? 0} />
+                  </label>
+                <label className="flex flex-col gap-1 text-xs text-gray-600">Commission
                     <input className="input w-24 py-1 text-sm" name="commission_kes" type="number" min="0" step="1" placeholder="auto" defaultValue={o.commission_kes ?? ""} />
                   </label>
                   <SubmitButton className="btn-ghost">Save</SubmitButton>

@@ -58,7 +58,7 @@ export default async function FarmersPage() {
           <tbody className="divide-y">
             {farmers.map((f) => (
               <tr key={f.id}>
-                <td className="py-2 font-medium">{f.full_name}</td>
+                <td className="py-2 font-medium"><a href={`/admin/farmers/${f.id}`} className="text-brand-700 hover:underline">{f.full_name}</a></td>
                 <td><a className="text-brand-700" href={`tel:+${f.phone}`}>{displayPhone(f.phone)}</a></td>
                 <td>{f.ward}{f.village ? ` · ${f.village}` : ""}</td>
                 <td>{f.group_name ?? "—"}</td>

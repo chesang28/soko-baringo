@@ -5,6 +5,11 @@ import { signOut } from "@/app/login/actions";
 
 export const metadata = { title: "Agent dashboard", robots: { index: false } };
 
+const LINKS: [string, string][] = [
+  ["/admin", "Overview"], ["/admin/orders", "Orders"], ["/admin/needs", "Buyer requests"], ["/admin/listings", "Listings"],
+  ["/admin/farmers", "Farmers"], ["/admin/customers", "Customers"], ["/admin/runs", "Trucks"], ["/admin/money", "Money"], ["/admin/agents", "Agents"],
+];
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -14,20 +19,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!isAdmin) {
     return (
       <div className="card mx-auto max-w-md text-center">
-        <p>Your account ({user.email}) is not an agent account yet.</p>
+        <p>Your account ({user.email}) is not an active agent account.</p>
         <form action={signOut} className="mt-4"><button className="btn-ghost">Sign out</button></form>
       </div>
     );
   }
 
-  const links = [["/admin", "Overview"], ["/admin/farmers", "Farmers"], ["/admin/listings", "Listings"], ["/admin/orders", "Orders"], ["/admin/money", "Money"]];
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center gap-2 border-b pb-3">
-        {links.map(([href, label]) => (
-          <Link key={href} href={href} className="rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-brand-50">{label}</Link>
+      <div className="-mx-4 mb-6 flex items-center gap-1 overflow-x-auto border-b px-4 pb-3 print:hidden">
+        {LINKS.map(([href, label]) => (
+          <Link key={href} href={href} className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-brand-50">{label}</Link>
         ))}
-        <form action={signOut} className="ml-auto"><button className="btn-ghost">Sign out</button></form>
+        <form action={signOut} className="ml-auto pl-2"><button className="btn-ghost whitespace-nowrap">Sign out</button></form>
       </div>
       {children}
     </div>

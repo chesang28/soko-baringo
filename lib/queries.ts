@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Listing, Product } from "@/lib/types";
 
 const LISTING_COLUMNS =
-  "id, farmer_id, product_id, quantity, unit, price_per_unit_kes, location, description, available_from, status, created_at, products(name)";
+  "id, farmer_id, product_id, quantity, unit, price_per_unit_kes, location, description, available_from, status, created_at, photo_path, grade, products(name)";
 
 export async function getProducts(): Promise<Product[]> {
   const supabase = await createClient();
@@ -37,7 +37,7 @@ export async function getSiteStats(): Promise<import("@/lib/types").SiteStats> {
   const { data, error } = await supabase.rpc("site_stats");
   if (error) {
     console.error("site_stats failed", error);
-    return { farmers: 0, wards: 0, listings: 0, deliveries: 0, agent_phone: null };
+    return { farmers: 0, wards: 0, listings: 0, deliveries: 0, open_needs: 0, avg_rating: null, review_count: 0, agent_phone: null };
   }
   return data as import("@/lib/types").SiteStats;
 }
