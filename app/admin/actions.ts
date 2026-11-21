@@ -1,5 +1,8 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { formatKes, orderRef } from "@/lib/format";
+import { notifyAgent, siteUrl, tgEscape } from "@/lib/telegram";
 import { PHOTO_PATH_RE } from "@/lib/photos";
 import { GRADES } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
@@ -86,11 +89,31 @@ export async function createListing(_prev: FormState, fd: FormData): Promise<For
       grade: optionalGrade(fd),
     };
     const supabase = await requireAdmin();
-    const { error } = await supabase.from("listings").insert(row);
+    const { data: created, error } = await supabase.from("listings").insert(row).select("id, products(name)").single();
     if (error) throw new Error(error.message);
     revalidatePath("/admin/listings");
     revalidatePath("/listings");
-    return "Listing published.";
+
+    // Matching: open buyer requests and waiting buyers for this product.
+    const today = new Date().toISOString().slice(0, 10);
+    const [needsRes, waitRes] = await Promise.all([
+      supabase.from("buyer_needs").select("quantity, unit, needed_by, location, buyer_name, buyer_org, max_price_kes")
+        .eq("product_id", row.product_id).eq("status", "open").gte("needed_by", today).order("needed_by").limit(10),
+      supabase.from("stock_alerts").select("id", { count: "exact", head: true }).eq("product_id", row.product_id).is("notified_at", null),
+    ]);
+    const needs = (needsRes.data ?? []) as { quantity: number; unit: string; needed_by: string; location: string; buyer_name: string; buyer_org: string | null; max_price_kes: number | null }[];
+    const waiting = waitRes.count ?? 0;
+    const product = (created as unknown as { products: { name: string } | null }).products?.name ?? "produce";
+    if (needs.length || waiting) {
+      after(() => notifyAgent([
+        `🎯 <b>Match found for new ${tgEscape(product)} listing</b> (${row.quantity} ${row.unit} @ ${formatKes(row.price_per_unit_kes)})`,
+        ...needs.map((n) => `• ${tgEscape(n.buyer_org ?? n.buyer_name)} needs ${n.quantity} ${n.unit} in ${tgEscape(n.location)} by ${n.needed_by}${n.max_price_kes ? ` (max ${formatKes(n.max_price_kes)})` : ""}`),
+        waiting ? `🔔 ${waiting} buyer(s) asked to be notified when ${tgEscape(product)} is in stock` : "",
+        `\n<a href="${siteUrl()}/admin/${needs.length ? "needs" : "customers"}">Contact them now</a>`,
+      ].filter(Boolean).join("\n")));
+    }
+    const hints = [needs.length ? `${needs.length} buyer request${needs.length > 1 ? "s" : ""} match` : "", waiting ? `${waiting} buyer${waiting > 1 ? "s are" : " is"} waiting for it (see Customers)` : ""].filter(Boolean);
+    return `Listing published.${hints.length ? ` 🎯 ${hints.join(" · ")}.` : ""}`;
   });
 }
 
@@ -385,5 +408,39 @@ export async function payFarmer(_prev: FormState, fd: FormData): Promise<FormSta
     if (insErr) throw new Error(insErr.message);
     revalidateOrders();
     return `Paid KES ${paid.toLocaleString("en-KE")} to farmer, covering ${rows.length} order${rows.length > 1 ? "s" : ""}.`;
+  });
+}
+
+// ─── Waiting list ("notify me") ─────────────────────────────────────────
+export async function markAlertNotified(fd: FormData): Promise<void> {
+  const ids = fd.getAll("id").map(String).filter((v) => /^[0-9a-f-]{36}$/i.test(v));
+  if (!ids.length) return;
+  const supabase = await requireAdmin();
+  const { error } = await supabase.from("stock_alerts").update({ notified_at: new Date().toISOString() }).in("id", ids);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/customers");
+}
+
+// ─── Repeat order ───────────────────────────────────────────────────────
+/** Re-creates a past order for the same buyer on the newest available listing of the same product. */
+export async function repeatOrder(_prev: FormState, fd: FormData): Promise<FormState> {
+  return run(async () => {
+    const id = uuid(fd, "order_id");
+    const supabase = await requireAdmin();
+    const { data: prev, error: e1 } = await supabase.from("orders")
+      .select("buyer_name, buyer_phone, buyer_org, quantity, note, listings(product_id, unit)").eq("id", id).single();
+    if (e1 || !prev) throw new ValidationError("Order not found.");
+    const p = prev as unknown as { buyer_name: string; buyer_phone: string; buyer_org: string | null; quantity: number; note: string | null; listings: { product_id: number; unit: string } };
+    const { data: listing } = await supabase.from("listings").select("id, quantity, price_per_unit_kes, location")
+      .eq("product_id", p.listings.product_id).eq("unit", p.listings.unit).eq("status", "available")
+      .gte("quantity", p.quantity).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!listing) throw new ValidationError(`No listing has ${p.quantity} ${p.listings.unit} in stock right now. Add a listing first.`);
+    const { data: created, error } = await supabase.from("orders").insert({
+      listing_id: listing.id, buyer_name: p.buyer_name, buyer_phone: p.buyer_phone, buyer_org: p.buyer_org,
+      quantity: p.quantity, note: p.note,
+    }).select("id").single();
+    if (error) throw new Error(error.message);
+    revalidatePath("/admin/orders"); revalidatePath("/admin");
+    return `Repeat order ${orderRef(created.id)} created (${p.quantity} ${p.listings.unit} @ ${formatKes(listing.price_per_unit_kes)} from ${listing.location}). It's in Orders → To do.`;
   });
 }

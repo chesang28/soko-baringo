@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PinIcon, ShieldIcon, TruckIcon } from "@/components/Icons";
+import { JsonLd } from "@/components/JsonLd";
 import { GradeBadge } from "@/components/ListingCard";
+import { siteUrl } from "@/lib/site";
 import { OrderForm } from "@/components/OrderForm";
 import { WhatsAppFab } from "@/components/WhatsAppFab";
 import { formatDate, formatKes, formatQty, isUuid } from "@/lib/format";
@@ -79,6 +81,24 @@ export default async function ListingPage({ params }: Props) {
         </div>
       </div>
       <WhatsAppFab phone={stats.agent_phone} label={t.chat} />
+      <JsonLd data={{
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: `${name} from ${listing.location}, Baringo`,
+        description: listing.description ?? `${name} direct from a verified farmer in ${listing.location}, Baringo County, Kenya.`,
+        ...(photo ? { image: photo } : {}),
+        category: "Fresh produce",
+        brand: { "@type": "Brand", name: "Soko Baringo" },
+        offers: {
+          "@type": "Offer",
+          url: `${siteUrl()}/listings/${listing.id}`,
+          priceCurrency: "KES",
+          price: listing.price_per_unit_kes,
+          availability: "https://schema.org/InStock",
+          eligibleQuantity: { "@type": "QuantitativeValue", maxValue: Number(listing.quantity), unitText: listing.unit },
+          areaServed: "KE",
+        },
+      }} />
     </div>
   );
 }

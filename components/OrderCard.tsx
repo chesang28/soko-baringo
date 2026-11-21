@@ -2,7 +2,7 @@ import { ActionForm } from "@/components/ActionForm";
 import { CheckIcon } from "@/components/Icons";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SubmitButton } from "@/components/SubmitButton";
-import { cancelOrder, confirmOrder, markDelivered, recordPayment, updateOrder } from "@/app/admin/actions";
+import { cancelOrder, confirmOrder, markDelivered, recordPayment, repeatOrder, updateOrder } from "@/app/admin/actions";
 import { displayPhone, formatDate, formatKes, formatQty, orderRef, whatsappLink } from "@/lib/format";
 import { productVisual } from "@/lib/products";
 import { ORDER_STATUSES, type OrderBalance } from "@/lib/types";
@@ -168,7 +168,13 @@ export function OrderCard({ b }: { b: OrderBalance }) {
       <details className="mt-3 text-sm">
         <summary className="cursor-pointer text-gray-500">More: edit, invoice, cancel</summary>
         <div className="mt-2 space-y-3 rounded-lg bg-gray-50 p-3">
-          {b.status !== "new" && b.status !== "cancelled" && <a className="btn-ghost" href={`/admin/orders/${b.order_id}/invoice`}>🧾 Invoice</a>}
+          <div className="flex flex-wrap items-start gap-2">
+            {b.status !== "new" && b.status !== "cancelled" && <a className="btn-ghost" href={`/admin/orders/${b.order_id}/invoice`}>🧾 Invoice</a>}
+            <ActionForm action={repeatOrder} resetOnSuccess={false}>
+              <input type="hidden" name="order_id" value={b.order_id} />
+              <SubmitButton className="btn-ghost">🔁 Repeat this order</SubmitButton>
+            </ActionForm>
+          </div>
           {(b.status === "delivered" || b.status === "paid") && (
             <ActionForm action={markDelivered} resetOnSuccess={false} className="space-y-2 rounded-lg bg-white p-3 ring-1 ring-gray-200">
               <p className="text-xs font-semibold text-gray-600">Change delivery details (e.g. add a driver you paid)</p>

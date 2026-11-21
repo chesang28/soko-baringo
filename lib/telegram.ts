@@ -24,4 +24,4 @@ export async function notifyAgent(html: string): Promise<void> {
   }
 }
 
-export const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL ?? "https://soko-baringo.vercel.app";
+export { siteUrl } from "./site";

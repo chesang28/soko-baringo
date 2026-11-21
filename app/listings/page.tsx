@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ListingCard } from "@/components/ListingCard";
+import { StockAlertForm } from "@/components/StockAlertForm";
 import { getDict } from "@/lib/i18n";
 import { productVisual } from "@/lib/products";
 import { getAvailableListings, getProducts } from "@/lib/queries";
@@ -33,7 +34,11 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
           <p className="text-4xl" aria-hidden="true">🧺</p>
           <p className="mt-2 font-semibold">{t.listings.none}</p>
           <p className="text-sm text-gray-600">{t.listings.noneSub}</p>
-          <Link href="/needs#post" className="btn mt-4">{t.bulk.cta}</Link>
+          {active ? (
+            <div className="mt-6 border-t pt-6"><StockAlertForm productId={active.id} productName={active.name} t={t.alert} /></div>
+          ) : (
+            <Link href="/needs#post" className="btn mt-4">{t.bulk.cta}</Link>
+          )}
         </div>
       ) : (
         <>

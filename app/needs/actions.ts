@@ -34,12 +34,16 @@ export async function postNeed(_prev: FormState, fd: FormData): Promise<FormStat
       return fail(error.message, { RATE_LIMITED: "You've posted several requests today. Please try tomorrow.", INVALID_DATE: "Choose a date between today and one year ahead." });
     }
     const product = String(fd.get("product_name") ?? "").slice(0, 60);
+    const { data: stock } = await supabase.from("listings").select("quantity, unit, price_per_unit_kes, location")
+      .eq("product_id", input.p_product_id).eq("status", "available").order("price_per_unit_kes").limit(5);
+    const inStock = (stock ?? []) as { quantity: number; unit: string; price_per_unit_kes: number; location: string }[];
     after(() => notifyAgent([
       `📋 <b>New buyer request</b>`,
       `${input.p_quantity} ${input.p_unit} of <b>${tgEscape(product)}</b> by ${input.p_needed_by}`,
       input.p_max_price ? `💰 up to KES ${input.p_max_price}/${input.p_unit}` : "",
       `📍 ${tgEscape(input.p_location)}`,
       `👤 ${tgEscape(input.p_name)}${input.p_org ? `, ${tgEscape(input.p_org)}` : ""} · +${input.p_phone}`,
+      inStock.length ? `\n🎯 <b>Already in stock:</b>\n${inStock.map((l) => `• ${l.quantity} ${l.unit} @ KES ${l.price_per_unit_kes} in ${tgEscape(l.location)}`).join("\n")}` : "",
       `\n<a href="${siteUrl()}/admin/needs">Open buyer requests</a>`,
     ].filter(Boolean).join("\n")));
     revalidatePath("/needs");

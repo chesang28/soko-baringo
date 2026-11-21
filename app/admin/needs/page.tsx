@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { markResponseHandled, updateNeedStatus } from "../actions";
 
 type Need = {
-  id: string; quantity: number; unit: string; max_price_kes: number | null; needed_by: string; location: string;
+  id: string; product_id: number; quantity: number; unit: string; max_price_kes: number | null; needed_by: string; location: string;
   buyer_name: string; buyer_phone: string; buyer_org: string | null; note: string | null; status: string; created_at: string;
   products: { name: string } | null;
   need_responses: { id: string; name: string; phone: string; quantity: number; price_per_unit_kes: number | null; handled: boolean; created_at: string }[];
@@ -16,11 +16,16 @@ export default async function AdminNeedsPage({ searchParams }: { searchParams: P
   const all = show === "all";
   const supabase = await createClient();
   let q = supabase.from("buyer_needs")
-    .select("id, quantity, unit, max_price_kes, needed_by, location, buyer_name, buyer_phone, buyer_org, note, status, created_at, products(name), need_responses(id, name, phone, quantity, price_per_unit_kes, handled, created_at)")
+    .select("id, product_id, quantity, unit, max_price_kes, needed_by, location, buyer_name, buyer_phone, buyer_org, note, status, created_at, products(name), need_responses(id, name, phone, quantity, price_per_unit_kes, handled, created_at)")
     .order("needed_by").limit(200);
   if (!all) q = q.eq("status", "open");
-  const { data } = await q;
+  const [{ data }, { data: stockRows }] = await Promise.all([
+    q,
+    supabase.from("listings").select("id, product_id, quantity, unit, price_per_unit_kes, location, farmers(full_name)").eq("status", "available"),
+  ]);
   const needs = (data ?? []) as unknown as Need[];
+  type Stock = { id: string; product_id: number; quantity: number; unit: string; price_per_unit_kes: number; location: string; farmers: { full_name: string } | null };
+  const stock = (stockRows ?? []) as unknown as Stock[];
 
   return (
     <div className="space-y-4">
@@ -55,6 +60,18 @@ export default async function AdminNeedsPage({ searchParams }: { searchParams: P
                 </form>
               </div>
             </div>
+            {(() => {
+              const matches = stock.filter((l) => l.product_id === n.product_id && (!n.max_price_kes || l.price_per_unit_kes <= n.max_price_kes));
+              return n.status === "open" && matches.length > 0 && (
+                <div className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-sm">
+                  <p className="font-semibold text-brand-800">🎯 In stock now ({matches.length})</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {matches.map((l) => <li key={l.id}>• {formatQty(l.quantity)} {l.unit} @ {formatKes(l.price_per_unit_kes)} · {l.farmers?.full_name}, {l.location}</li>)}
+                  </ul>
+                  <p className="mt-1 text-xs text-gray-600">Call the buyer, then create the order from the listing page or ask them to request it on the site.</p>
+                </div>
+              );
+            })()}
             {n.need_responses.length > 0 && (
               <ul className="mt-3 divide-y rounded-lg bg-gray-50 px-3 text-sm">
                 {n.need_responses.map((r) => (

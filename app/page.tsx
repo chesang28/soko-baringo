@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { FarmerLeadForm } from "@/components/FarmerLeadForm";
+import { JsonLd } from "@/components/JsonLd";
+import { siteUrl } from "@/lib/site";
 import { CheckIcon, CoinIcon, ShieldIcon, TruckIcon } from "@/components/Icons";
 import { ListingCard } from "@/components/ListingCard";
 import { WhatsAppFab } from "@/components/WhatsAppFab";
@@ -183,6 +185,18 @@ export default async function HomePage() {
       </section>
 
       <WhatsAppFab phone={stats.agent_phone} label={t.chat} />
+      <JsonLd data={{
+        "@context": "https://schema.org",
+        "@type": "LocalBusiness",
+        name: "Soko Baringo",
+        description: "Farm produce marketplace connecting Baringo County farmers directly to buyers: mangoes, honey, avocados and more.",
+        url: siteUrl(),
+        image: `${siteUrl()}/icons/icon-512.png`,
+        ...(stats.agent_phone ? { telephone: `+${stats.agent_phone}` } : {}),
+        address: { "@type": "PostalAddress", addressLocality: "Kabarnet", addressRegion: "Baringo County", addressCountry: "KE" },
+        areaServed: ["Baringo County", "Nakuru", "Eldoret", "Nairobi"],
+        ...(stats.review_count > 0 && stats.avg_rating ? { aggregateRating: { "@type": "AggregateRating", ratingValue: stats.avg_rating, reviewCount: stats.review_count } } : {}),
+      }} />
     </div>
   );
 }

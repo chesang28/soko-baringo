@@ -93,6 +93,10 @@ const en = {
     product: "Product", listedNow: "Listed now", range: "Range", sold30: "Avg sold (30 days)", trend: "vs previous 30 days", volume: "Sold (30 days)",
     none: "Prices appear once produce is listed.", per: "per",
   },
+  alert: {
+    title: "Get notified when it's in stock", sub: "Leave your number and we'll contact you as soon as a farmer lists it.",
+    name: "Your name", phone: "Phone number", submit: "Notify me", done: "Done! We'll contact you when it's available.",
+  },
   chat: "Chat with us",
 };
 
@@ -188,6 +192,10 @@ const sw: Dict = {
     title: "Bei za mazao", sub: "Bei halisi kutoka kwa mazao ya Soko Baringo na mauzo ya siku 30 zilizopita. Zinasasishwa kiotomatiki.",
     product: "Zao", listedNow: "Bei sasa", range: "Kiwango", sold30: "Wastani wa mauzo (siku 30)", trend: "dhidi ya siku 30 zilizopita", volume: "Kilichouzwa (siku 30)",
     none: "Bei zitaonekana mazao yakiorodheshwa.", per: "kwa",
+  },
+  alert: {
+    title: "Pata taarifa yakipatikana", sub: "Acha nambari yako na tutakujulisha mara tu mkulima atakapoorodhesha.",
+    name: "Jina lako", phone: "Nambari ya simu", submit: "Nijulishe", done: "Tayari! Tutakujulisha yakipatikana.",
   },
   chat: "Ongea nasi",
 };

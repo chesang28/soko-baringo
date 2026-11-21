@@ -1,9 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { RegisterSW } from "@/components/RegisterSW";
 import { getDict } from "@/lib/i18n";
+import { siteUrl } from "@/lib/site";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
+  appleWebApp: { capable: true, title: "Soko Baringo", statusBarStyle: "default" },
   title: { default: "Soko Baringo · Fresh produce direct from Baringo farmers", template: "%s · Soko Baringo" },
   description: "Buy mangoes, honey and fresh produce directly from verified farmers in Kabarnet and the Kerio Valley. Fair prices for farmers, reliable supply for buyers.",
   openGraph: {
@@ -49,6 +53,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
+        <RegisterSW />
         <footer className="mt-12 border-t bg-white print:hidden">
           <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 text-sm sm:grid-cols-3">
             <div>
