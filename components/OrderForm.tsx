@@ -49,6 +49,9 @@ export function OrderForm({ listingId, product, unit, maxQty, price, agentPhone 
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="listing_id" value={listingId} />
+      <input type="hidden" name="product" value={product} />
+      <input type="hidden" name="unit" value={unit} />
+      <input type="hidden" name="price" value={price} />
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
       <div>
         <label className="label" htmlFor="quantity">How many {unit}s?</label>
