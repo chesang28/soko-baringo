@@ -20,7 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     );
   }
 
-  const links = [["/admin", "Overview"], ["/admin/farmers", "Farmers"], ["/admin/listings", "Listings"], ["/admin/orders", "Orders"]];
+  const links = [["/admin", "Overview"], ["/admin/farmers", "Farmers"], ["/admin/listings", "Listings"], ["/admin/orders", "Orders"], ["/admin/money", "Money"]];
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-center gap-2 border-b pb-3">

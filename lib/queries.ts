@@ -31,3 +31,13 @@ export async function getListing(id: string): Promise<Listing | null> {
   if (error) throw error;
   return data as unknown as Listing | null;
 }
+
+export async function getSiteStats(): Promise<import("@/lib/types").SiteStats> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("site_stats");
+  if (error) {
+    console.error("site_stats failed", error);
+    return { farmers: 0, wards: 0, listings: 0, deliveries: 0, agent_phone: null };
+  }
+  return data as import("@/lib/types").SiteStats;
+}

@@ -11,11 +11,11 @@ const DB_ERRORS: Record<string, string> = {
 
 export async function requestOrder(_prev: FormState, fd: FormData): Promise<FormState> {
   // Honeypot: real users never fill this hidden field.
-  if (fd.get("website")) return { ok: true, message: "Request received." };
+  if (fd.get("website")) return { ok: false, message: "Could not send request." };
 
   try {
     const supabase = await createClient();
-    const { error } = await supabase.rpc("request_order", {
+    const { data, error } = await supabase.rpc("request_order", {
       p_listing_id: uuid(fd, "listing_id"),
       p_buyer_name: str(fd, "name", { min: 2, max: 120 }),
       p_buyer_phone: phone(fd, "phone"),
@@ -30,7 +30,7 @@ export async function requestOrder(_prev: FormState, fd: FormData): Promise<Form
       console.error("request_order failed", error);
       return { ok: false, message: "Something went wrong. Please try again." };
     }
-    return { ok: true, message: "Request sent! Our agent will call you shortly to confirm." };
+    return { ok: true, message: "Request sent!", data: { id: String(data) } };
   } catch (e) {
     if (e instanceof ValidationError) return { ok: false, message: e.message };
     throw e;

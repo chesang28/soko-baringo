@@ -1,9 +1,9 @@
 import { ActionForm } from "@/components/ActionForm";
 import { SubmitButton } from "@/components/SubmitButton";
-import { displayPhone, formatDate } from "@/lib/format";
+import { displayPhone, formatDate, whatsappLink } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import type { Farmer } from "@/lib/types";
-import { createFarmer } from "../actions";
+import { createFarmer, setLeadHandled } from "../actions";
 
 export default async function FarmersPage() {
   const supabase = await createClient();
@@ -11,8 +11,34 @@ export default async function FarmersPage() {
     .from("farmers").select("id, full_name, phone, ward, village, group_name, created_at")
     .order("created_at", { ascending: false }).limit(200);
   const farmers = (data ?? []) as Farmer[];
+  const { data: leadRows } = await supabase
+    .from("farmer_leads").select("id, full_name, phone, ward, produce, created_at")
+    .eq("handled", false).order("created_at", { ascending: false }).limit(100);
+  const leads = (leadRows ?? []) as { id: string; full_name: string; phone: string; ward: string; produce: string | null; created_at: string }[];
 
   return (
+    <div className="space-y-6">
+    {leads.length > 0 && (
+      <div className="card border-honey-400 bg-amber-50">
+        <h2 className="mb-2 font-semibold">🌱 Farmers asking to join ({leads.length})</h2>
+        <ul className="divide-y divide-amber-200">
+          {leads.map((l) => (
+            <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+              <div>
+                <p className="font-medium">{l.full_name} · {l.ward}</p>
+                <p className="text-xs text-gray-600">{l.produce ?? "Produce not stated"} · {formatDate(l.created_at)}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <a className="btn-ghost bg-white" href={`tel:+${l.phone}`}>Call {displayPhone(l.phone)}</a>
+                <a className="btn-ghost bg-white" target="_blank" rel="noopener noreferrer"
+                   href={whatsappLink(l.phone, `Hello ${l.full_name}, this is Soko Baringo. Thank you for your interest! When can our agent visit you in ${l.ward}?`)}>WhatsApp</a>
+                <form action={setLeadHandled}><input type="hidden" name="id" value={l.id} /><SubmitButton className="btn-ghost bg-white">Done ✓</SubmitButton></form>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
       <ActionForm action={createFarmer} className="card h-fit space-y-3">
         <h2 className="font-semibold">Register farmer</h2>
@@ -42,6 +68,7 @@ export default async function FarmersPage() {
           </tbody>
         </table>
       </div>
+    </div>
     </div>
   );
 }

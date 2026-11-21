@@ -1,64 +1,70 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ActionForm } from "@/components/ActionForm";
-import { SubmitButton } from "@/components/SubmitButton";
-import { formatDate, formatKes, formatQty } from "@/lib/format";
-import { getListing } from "@/lib/queries";
-import { requestOrder } from "./actions";
+import { PinIcon, ShieldIcon, TruckIcon } from "@/components/Icons";
+import { OrderForm } from "@/components/OrderForm";
+import { WhatsAppFab } from "@/components/WhatsAppFab";
+import { formatDate, formatKes, formatQty, isUuid } from "@/lib/format";
+import { productVisual } from "@/lib/products";
+import { getListing, getSiteStats } from "@/lib/queries";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+type Props = { params: Promise<{ id: string }> };
 
-export default async function ListingPage({ params }: { params: Promise<{ id: string }> }) {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  if (!UUID_RE.test(id)) notFound();
-  const listing = await getListing(id);
+  if (!isUuid(id)) return {};
+  const l = await getListing(id);
+  if (!l) return {};
+  return { title: `${l.products?.name} · ${formatKes(l.price_per_unit_kes)}/${l.unit}`, description: `${formatQty(l.quantity)} ${l.unit} of ${l.products?.name} available in ${l.location}, Baringo.` };
+}
+
+export default async function ListingPage({ params }: Props) {
+  const { id } = await params;
+  if (!isUuid(id)) notFound();
+  const [listing, stats] = await Promise.all([getListing(id), getSiteStats()]);
   if (!listing || listing.status !== "available") notFound();
 
-  return (
-    <div className="grid gap-6 md:grid-cols-2">
-      <div>
-        <Link href="/listings" className="text-sm text-brand-700">← All produce</Link>
-        <h1 className="mt-2 text-2xl font-bold">{listing.products?.name}</h1>
-        <p className="mt-1 text-3xl font-bold text-brand-700">
-          {formatKes(listing.price_per_unit_kes)} <span className="text-base font-normal text-gray-500">per {listing.unit}</span>
-        </p>
-        <dl className="card mt-4 grid grid-cols-2 gap-3 text-sm">
-          <dt className="text-gray-500">Available</dt><dd className="font-medium">{formatQty(listing.quantity)} {listing.unit}</dd>
-          <dt className="text-gray-500">Pickup area</dt><dd className="font-medium">{listing.location}</dd>
-          <dt className="text-gray-500">Ready from</dt><dd className="font-medium">{formatDate(listing.available_from)}</dd>
-        </dl>
-        {listing.description && <p className="mt-4 whitespace-pre-line text-gray-700">{listing.description}</p>}
-      </div>
+  const name = listing.products?.name ?? "Produce";
+  const { emoji, tint } = productVisual(name);
+  const readyNow = new Date(listing.available_from) <= new Date();
 
-      <div className="card h-fit">
-        <h2 className="text-lg font-semibold">Request to buy</h2>
-        <p className="mb-4 text-sm text-gray-600">No payment now — our agent will call to confirm price and delivery.</p>
-        <ActionForm action={requestOrder} className="space-y-3">
-          <input type="hidden" name="listing_id" value={listing.id} />
-          <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
-          <div>
-            <label className="label" htmlFor="quantity">Quantity ({listing.unit})</label>
-            <input className="input" id="quantity" name="quantity" type="number" min="0.01" step="0.01" max={listing.quantity} required />
+  return (
+    <div>
+      <Link href="/listings" className="text-sm font-medium text-brand-700">← All produce</Link>
+      <div className="mt-4 grid gap-8 lg:grid-cols-[1.2fr_1fr]">
+        <div>
+          <div className={`flex h-64 items-center justify-center rounded-3xl ${tint}`}>
+            <span className="text-9xl drop-shadow" aria-hidden="true">{emoji}</span>
           </div>
-          <div>
-            <label className="label" htmlFor="name">Your name</label>
-            <input className="input" id="name" name="name" required minLength={2} maxLength={120} autoComplete="name" />
+          <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h1 className="text-3xl font-extrabold">{name}</h1>
+              <p className="mt-1 flex items-center gap-1 text-gray-600"><PinIcon className="h-4 w-4" />{listing.location}, Baringo</p>
+            </div>
+            <p className="text-right">
+              <span className="text-4xl font-extrabold text-brand-700">{formatKes(listing.price_per_unit_kes)}</span>
+              <span className="block text-sm text-gray-500">per {listing.unit}</span>
+            </p>
           </div>
-          <div>
-            <label className="label" htmlFor="phone">Phone (M-Pesa)</label>
-            <input className="input" id="phone" name="phone" type="tel" inputMode="tel" placeholder="0712 345 678" required autoComplete="tel" />
-          </div>
-          <div>
-            <label className="label" htmlFor="organisation">Business / organisation (optional)</label>
-            <input className="input" id="organisation" name="organisation" maxLength={120} />
-          </div>
-          <div>
-            <label className="label" htmlFor="note">Note (optional)</label>
-            <textarea className="input" id="note" name="note" rows={2} maxLength={500} placeholder="Delivery town, preferred date…" />
-          </div>
-          <SubmitButton className="btn w-full">Send request</SubmitButton>
-        </ActionForm>
+          <dl className="mt-6 grid grid-cols-3 gap-3 text-center">
+            <div className="rounded-2xl bg-white p-4 ring-1 ring-gray-200"><dt className="text-xs text-gray-500">Available</dt><dd className="mt-1 font-bold">{formatQty(listing.quantity)} {listing.unit}</dd></div>
+            <div className="rounded-2xl bg-white p-4 ring-1 ring-gray-200"><dt className="text-xs text-gray-500">Ready</dt><dd className="mt-1 font-bold">{readyNow ? "Now" : formatDate(listing.available_from)}</dd></div>
+            <div className="rounded-2xl bg-white p-4 ring-1 ring-gray-200"><dt className="text-xs text-gray-500">Pickup</dt><dd className="mt-1 truncate font-bold">{listing.location}</dd></div>
+          </dl>
+          {listing.description && <p className="mt-6 whitespace-pre-line text-gray-700">{listing.description}</p>}
+          <ul className="mt-6 space-y-2 text-sm text-gray-700">
+            <li className="flex items-center gap-2"><ShieldIcon className="h-5 w-5 text-brand-700" />Verified farmer, registered in person by our agent</li>
+            <li className="flex items-center gap-2"><TruckIcon className="h-5 w-5 text-brand-700" />Pickup in {listing.location} or delivery to your town</li>
+          </ul>
+        </div>
+
+        <div className="h-fit rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-200 lg:sticky lg:top-24">
+          <h2 className="mb-4 text-xl font-bold">Request to buy</h2>
+          <OrderForm listingId={listing.id} product={name} unit={listing.unit} maxQty={Number(listing.quantity)}
+                     price={listing.price_per_unit_kes} agentPhone={stats.agent_phone} />
+        </div>
       </div>
+      <WhatsAppFab phone={stats.agent_phone} />
     </div>
   );
 }

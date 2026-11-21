@@ -97,16 +97,53 @@ export async function updateOrder(_prev: FormState, fd: FormData): Promise<FormS
   });
 }
 
-export async function updateCommissionRate(_prev: FormState, fd: FormData): Promise<FormState> {
+export async function updateSettings(_prev: FormState, fd: FormData): Promise<FormState> {
   return run(async () => {
     const percent = num(fd, "commission_percent", { min: -0.0001, max: 50 });
+    const rawPhone = String(fd.get("agent_phone") ?? "").trim();
+    const agent_phone = rawPhone ? phone(fd, "agent_phone") : null;
     const supabase = await requireAdmin();
     const { error } = await supabase
       .from("settings")
-      .update({ commission_rate: Math.round(percent * 100) / 10000 })
+      .update({ commission_rate: Math.round(percent * 100) / 10000, agent_phone })
       .eq("id", true);
     if (error) throw new Error(error.message);
-    revalidatePath("/admin");
-    return `Commission set to ${percent}%. Applies to new agreed totals.`;
+    revalidatePath("/", "layout");
+    return "Settings saved.";
   });
+}
+
+const DIRECTIONS = ["from_buyer", "to_farmer"] as const;
+const METHODS = ["mpesa", "cash", "bank", "other"] as const;
+
+export async function recordPayment(_prev: FormState, fd: FormData): Promise<FormState> {
+  return run(async () => {
+    const direction = String(fd.get("direction"));
+    const method = String(fd.get("method"));
+    if (!(DIRECTIONS as readonly string[]).includes(direction)) throw new ValidationError("Choose who paid.");
+    if (!(METHODS as readonly string[]).includes(method)) throw new ValidationError("Choose a payment method.");
+    const row = {
+      order_id: uuid(fd, "order_id"),
+      direction,
+      method,
+      amount_kes: num(fd, "amount_kes", { integer: true, max: 100_000_000 }),
+      reference: str(fd, "reference", { max: 60, required: false })?.toUpperCase() ?? null,
+    };
+    const supabase = await requireAdmin();
+    const { error } = await supabase.from("payments").insert(row);
+    if (error) throw new Error(error.message);
+    revalidatePath("/admin/orders");
+    revalidatePath("/admin/money");
+    revalidatePath("/admin");
+    return `Recorded KES ${row.amount_kes.toLocaleString("en-KE")} ${direction === "from_buyer" ? "received from buyer" : "paid to farmer"}.`;
+  });
+}
+
+export async function setLeadHandled(fd: FormData): Promise<void> {
+  const id = uuid(fd, "id");
+  const supabase = await requireAdmin();
+  const { error } = await supabase.from("farmer_leads").update({ handled: true }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/farmers");
+  revalidatePath("/admin");
 }
