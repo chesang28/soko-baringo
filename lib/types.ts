@@ -83,6 +83,16 @@ export type OrderBalance = {
   commission_kes: number;
   farmer_share_kes: number;
   delivery_fee_kes: number;
+  note: string | null;
+  price_per_unit_kes: number;
+  location: string;
+  delivery_method: "pickup" | "hired";
+  driver_name: string | null;
+  driver_phone: string | null;
+  transport_cost_kes: number;
+  driver_paid_kes: number;
+  driver_owed_kes: number;
+  profit_kes: number;
   received_kes: number;
   paid_out_kes: number;
   buyer_owes_kes: number;
@@ -92,7 +102,7 @@ export type OrderBalance = {
 export type Payment = {
   id: string;
   order_id: string;
-  direction: "from_buyer" | "to_farmer";
+  direction: "from_buyer" | "to_farmer" | "to_driver";
   amount_kes: number;
   method: "mpesa" | "cash" | "bank" | "other";
   reference: string | null;

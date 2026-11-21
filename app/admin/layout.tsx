@@ -7,7 +7,7 @@ export const metadata = { title: "Agent dashboard", robots: { index: false } };
 
 const LINKS: [string, string][] = [
   ["/admin", "Overview"], ["/admin/orders", "Orders"], ["/admin/needs", "Buyer requests"], ["/admin/listings", "Listings"],
-  ["/admin/farmers", "Farmers"], ["/admin/customers", "Customers"], ["/admin/runs", "Trucks"], ["/admin/money", "Money"], ["/admin/agents", "Agents"],
+  ["/admin/farmers", "Farmers"], ["/admin/customers", "Customers"], ["/admin/money", "Money"], ["/admin/agents", "Agents"],
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

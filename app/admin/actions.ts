@@ -153,7 +153,7 @@ export async function updateSettings(_prev: FormState, fd: FormData): Promise<Fo
   });
 }
 
-const DIRECTIONS = ["from_buyer", "to_farmer"] as const;
+const DIRECTIONS = ["from_buyer", "to_farmer", "to_driver"] as const;
 const METHODS = ["mpesa", "cash", "bank", "other"] as const;
 
 export async function recordPayment(_prev: FormState, fd: FormData): Promise<FormState> {
@@ -175,7 +175,8 @@ export async function recordPayment(_prev: FormState, fd: FormData): Promise<For
     revalidatePath("/admin/orders");
     revalidatePath("/admin/money");
     revalidatePath("/admin");
-    return `Recorded KES ${row.amount_kes.toLocaleString("en-KE")} ${direction === "from_buyer" ? "received from buyer" : "paid to farmer"}.`;
+    revalidatePath("/admin/customers");
+    return `Recorded KES ${row.amount_kes.toLocaleString("en-KE")} ${direction === "from_buyer" ? "received from buyer" : direction === "to_farmer" ? "paid to farmer" : "paid to driver"}.`;
   });
 }
 
@@ -304,4 +305,85 @@ export async function removeFromRun(fd: FormData): Promise<void> {
   const { error } = await supabase.from("orders").update({ run_id: null }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/admin/runs/${runId}`);
+}
+
+// ─── Step-by-step order flow ────────────────────────────────────────────
+const revalidateOrders = () => {
+  ["/admin/orders", "/admin/money", "/admin", "/admin/customers", "/admin/listings", "/listings"].forEach((p) => revalidatePath(p));
+};
+
+export async function confirmOrder(_prev: FormState, fd: FormData): Promise<FormState> {
+  return run(async () => {
+    const id = uuid(fd, "id");
+    const patch = {
+      status: "confirmed",
+      agreed_total_kes: optionalInt(fd, "agreed_total_kes"),
+      delivery_fee_kes: optionalInt(fd, "delivery_fee_kes") ?? 0,
+    };
+    if (patch.agreed_total_kes === null) throw new ValidationError("Enter the agreed price.");
+    const supabase = await requireAdmin();
+    const { error } = await supabase.from("orders").update(patch).eq("id", id);
+    if (error) throw new Error(error.message);
+    revalidateOrders();
+    return "Order confirmed.";
+  });
+}
+
+export async function markDelivered(_prev: FormState, fd: FormData): Promise<FormState> {
+  return run(async () => {
+    const id = uuid(fd, "id");
+    const hired = fd.get("delivery_method") === "hired";
+    const driverPhone = String(fd.get("driver_phone") ?? "").trim();
+    const patch = hired
+      ? {
+          status: "delivered", delivery_method: "hired",
+          driver_name: str(fd, "driver_name", { min: 2, max: 120 }),
+          driver_phone: driverPhone ? phone(fd, "driver_phone") : null,
+          transport_cost_kes: optionalInt(fd, "transport_cost_kes") ?? 0,
+        }
+      : { status: "delivered", delivery_method: "pickup", driver_name: null, driver_phone: null, transport_cost_kes: 0 };
+    const supabase = await requireAdmin();
+    const { error } = await supabase.from("orders").update(patch).eq("id", id);
+    if (error) throw new Error(error.message);
+    revalidateOrders();
+    return "Marked as delivered.";
+  });
+}
+
+export async function cancelOrder(fd: FormData): Promise<void> {
+  const id = uuid(fd, "id");
+  const supabase = await requireAdmin();
+  const { error } = await supabase.from("orders").update({ status: "cancelled" }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidateOrders();
+}
+
+/** Pay a farmer once for everything they're owed; the amount is split across their orders, oldest first. */
+export async function payFarmer(_prev: FormState, fd: FormData): Promise<FormState> {
+  return run(async () => {
+    const farmerId = uuid(fd, "farmer_id");
+    let amount = num(fd, "amount_kes", { integer: true, max: 100_000_000 });
+    const method = String(fd.get("method"));
+    if (!(METHODS as readonly string[]).includes(method)) throw new ValidationError("Choose a payment method.");
+    const reference = str(fd, "reference", { max: 60, required: false })?.toUpperCase() ?? null;
+    const supabase = await requireAdmin();
+    const { data, error } = await supabase.from("order_balances")
+      .select("order_id, farmer_owed_kes, delivered_at").eq("farmer_id", farmerId).gt("farmer_owed_kes", 0).order("delivered_at");
+    if (error) throw new Error(error.message);
+    const owed = (data ?? []) as { order_id: string; farmer_owed_kes: number }[];
+    const total = owed.reduce((s, o) => s + o.farmer_owed_kes, 0);
+    if (amount > total) throw new ValidationError(`That's more than you owe this farmer (KES ${total.toLocaleString("en-KE")}).`);
+    const paid = amount;
+    const rows = [];
+    for (const o of owed) {
+      if (amount <= 0) break;
+      const part = Math.min(amount, o.farmer_owed_kes);
+      rows.push({ order_id: o.order_id, direction: "to_farmer", amount_kes: part, method, reference });
+      amount -= part;
+    }
+    const { error: insErr } = await supabase.from("payments").insert(rows);
+    if (insErr) throw new Error(insErr.message);
+    revalidateOrders();
+    return `Paid KES ${paid.toLocaleString("en-KE")} to farmer, covering ${rows.length} order${rows.length > 1 ? "s" : ""}.`;
+  });
 }

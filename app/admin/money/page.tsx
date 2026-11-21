@@ -1,4 +1,7 @@
+import { ActionForm } from "@/components/ActionForm";
 import { RevenueChart } from "@/components/RevenueChart";
+import { SubmitButton } from "@/components/SubmitButton";
+import { payFarmer } from "../actions";
 import { displayPhone, formatDate, formatKes, orderRef, whatsappLink } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import type { DailyRevenue, OrderBalance, Payment } from "@/lib/types";
@@ -42,7 +45,7 @@ export default async function MoneyPage() {
     sales: committed.reduce((s, b) => s + b.total_kes, 0),
     commission: committed.reduce((s, b) => s + b.commission_kes, 0),
     cashIn: balances.reduce((s, b) => s + b.received_kes, 0),
-    cashOut: balances.reduce((s, b) => s + b.paid_out_kes, 0),
+    cashOut: balances.reduce((s, b) => s + b.paid_out_kes + (b.driver_paid_kes ?? 0), 0),
     fees: committed.reduce((s, b) => s + b.delivery_fee_kes, 0),
     transport: yearTransport,
   };
@@ -55,21 +58,28 @@ export default async function MoneyPage() {
 
   // Group balances by person.
   const buyers = new Map<string, { name: string; phone: string; owes: number; orders: number }>();
-  const farmers = new Map<string, { name: string; phone: string; owed: number; orders: number }>();
+  const farmers = new Map<string, { id: string; name: string; phone: string; owed: number; orders: number }>();
+  const drivers = new Map<string, { name: string; phone: string | null; owed: number; orders: number }>();
   for (const b of balances) {
     if (b.buyer_owes_kes > 0) {
       const g = buyers.get(b.buyer_phone) ?? { name: b.buyer_name, phone: b.buyer_phone, owes: 0, orders: 0 };
       g.owes += b.buyer_owes_kes; g.orders += 1; buyers.set(b.buyer_phone, g);
     }
     if (b.farmer_owed_kes > 0) {
-      const g = farmers.get(b.farmer_id) ?? { name: b.farmer_name, phone: b.farmer_phone, owed: 0, orders: 0 };
+      const g = farmers.get(b.farmer_id) ?? { id: b.farmer_id, name: b.farmer_name, phone: b.farmer_phone, owed: 0, orders: 0 };
       g.owed += b.farmer_owed_kes; g.orders += 1; farmers.set(b.farmer_id, g);
+    }
+    if (b.driver_owed_kes > 0) {
+      const k = b.driver_phone ?? b.driver_name ?? "driver";
+      const g = drivers.get(k) ?? { name: b.driver_name ?? "Driver", phone: b.driver_phone, owed: 0, orders: 0 };
+      g.owed += b.driver_owed_kes; g.orders += 1; drivers.set(k, g);
     }
   }
   const owedToMe = [...buyers.values()].sort((a, b) => b.owes - a.owes);
   const iOwe = [...farmers.values()].sort((a, b) => b.owed - a.owed);
   const totalOwedToMe = owedToMe.reduce((s, b) => s + b.owes, 0);
-  const totalIOwe = iOwe.reduce((s, f) => s + f.owed, 0);
+  const driversOwed = [...drivers.values()];
+  const totalIOwe = iOwe.reduce((s, f) => s + f.owed, 0) + driversOwed.reduce((s, d) => s + d.owed, 0);
   const balanceByOrder = new Map(balances.map((b) => [b.order_id, b]));
 
   return (
@@ -85,7 +95,7 @@ export default async function MoneyPage() {
           <p className="mt-1 text-3xl font-bold">{formatKes(totalOwedToMe)}</p>
         </div>
         <div className="card border-l-4 border-l-orange-500">
-          <p className="text-sm text-gray-500">You owe farmers</p>
+          <p className="text-sm text-gray-500">You owe farmers & drivers</p>
           <p className="mt-1 text-3xl font-bold">{formatKes(totalIOwe)}</p>
         </div>
         <div className="card border-l-4 border-l-gray-400">
@@ -113,7 +123,7 @@ export default async function MoneyPage() {
         ))}
       </div>
 
-      <p className="-mt-3 text-xs text-gray-500">Your income = commission + delivery fees − truck costs (before paying agents their share). &ldquo;All time&rdquo; truck costs cover the last 12 months.</p>
+      <p className="-mt-3 text-xs text-gray-500">Your income = commission + delivery fees − what you pay drivers (before paying agents their share).</p>
       <div className="card">
         <h2 className="font-semibold">Daily sales, last 30 days</h2>
         <p className="mb-3 text-xs text-gray-500">Counted on the day an order is confirmed. Hover a bar for details.</p>
@@ -139,16 +149,43 @@ export default async function MoneyPage() {
           )}
         </div>
         <div className="card">
-          <h2 className="mb-3 font-semibold">Farmers you owe</h2>
+          <h2 className="mb-1 font-semibold">Farmers you owe</h2>
+          <p className="mb-2 text-xs text-gray-500">Tap Pay to record one payment covering all of a farmer&apos;s orders.</p>
           {iOwe.length === 0 ? <p className="text-sm text-gray-500">All farmers are paid up.</p> : (
             <ul className="divide-y">
               {iOwe.map((f) => (
-                <li key={f.phone} className="flex items-center justify-between gap-2 py-2 text-sm">
-                  <div><p className="font-medium">{f.name}</p><p className="text-xs text-gray-500">{displayPhone(f.phone)} · {f.orders} order{f.orders > 1 ? "s" : ""}</p></div>
-                  <span className="font-bold text-orange-700">{formatKes(f.owed)}</span>
+                <li key={f.id} className="py-3 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <div><p className="font-medium">{f.name}</p><p className="text-xs text-gray-500">{displayPhone(f.phone)} · {f.orders} order{f.orders > 1 ? "s" : ""}</p></div>
+                    <span className="font-bold text-orange-700">{formatKes(f.owed)}</span>
+                  </div>
+                  <details className="mt-1">
+                    <summary className="btn-ghost cursor-pointer list-none px-3 py-1 text-xs">💸 Pay {f.name.split(" ")[0]}</summary>
+                    <ActionForm action={payFarmer} className="mt-2 flex flex-wrap items-end gap-2">
+                      <input type="hidden" name="farmer_id" value={f.id} />
+                      <label className="flex flex-col gap-1 text-xs text-gray-600">Amount<input className="input w-28 py-1 text-sm" name="amount_kes" type="number" min="1" max={f.owed} defaultValue={f.owed} required /></label>
+                      <label className="flex flex-col gap-1 text-xs text-gray-600">Via<select className="input py-1 text-sm" name="method"><option value="mpesa">M-Pesa</option><option value="cash">Cash</option><option value="bank">Bank</option></select></label>
+                      <label className="flex flex-col gap-1 text-xs text-gray-600">M-Pesa code<input className="input w-28 py-1 text-sm" name="reference" maxLength={60} /></label>
+                      <SubmitButton className="btn px-3 py-1.5 text-sm">Record</SubmitButton>
+                    </ActionForm>
+                  </details>
                 </li>
               ))}
             </ul>
+          )}
+          {driversOwed.length > 0 && (
+            <>
+              <h3 className="mt-4 text-sm font-semibold">Drivers you owe</h3>
+              <ul className="divide-y">
+                {driversOwed.map((d) => (
+                  <li key={d.name + d.phone} className="flex items-center justify-between py-2 text-sm">
+                    <span><b>{d.name}</b>{d.phone ? ` · ${displayPhone(d.phone)}` : ""} · {d.orders} trip{d.orders > 1 ? "s" : ""}</span>
+                    <span className="font-bold text-orange-700">{formatKes(d.owed)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-gray-500">Pay drivers from each order&apos;s step 5 on the Orders page.</p>
+            </>
           )}
           <p className="mt-3 text-xs text-gray-500">A farmer is owed once their order is marked delivered: the agreed total minus your commission.</p>
         </div>
@@ -167,7 +204,7 @@ export default async function MoneyPage() {
                   <tr key={p.id}>
                     <td className="py-2">{formatDate(p.paid_at)}</td>
                     <td className="font-mono text-xs">{orderRef(p.order_id)}</td>
-                    <td>{inbound ? `From ${b?.buyer_name ?? "buyer"}` : `To ${b?.farmer_name ?? "farmer"}`}</td>
+                    <td>{inbound ? `From ${b?.buyer_name ?? "buyer"}` : p.direction === "to_driver" ? `To driver ${b?.driver_name ?? ""}` : `To ${b?.farmer_name ?? "farmer"}`}</td>
                     <td className="capitalize">{p.method === "mpesa" ? "M-Pesa" : p.method}</td>
                     <td className="font-mono text-xs">{p.reference ?? "—"}</td>
                     <td className={`text-right font-semibold ${inbound ? "text-brand-700" : "text-orange-700"}`}>{inbound ? "+" : "−"}{formatKes(p.amount_kes)}</td>
