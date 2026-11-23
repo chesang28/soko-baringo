@@ -48,10 +48,6 @@ export default async function FarmersPage() {
         <div><label className="label" htmlFor="village">Village</label><input className="input" id="village" name="village" /></div>
         <div><label className="label" htmlFor="group_name">Group / co-op</label><input className="input" id="group_name" name="group_name" /></div>
         <div><label className="label" htmlFor="notes">Notes</label><textarea className="input" id="notes" name="notes" rows={2} placeholder="Crops, hive count, acreage…" /></div>
-        <label className="flex items-start gap-2 text-xs text-gray-600">
-          <input type="checkbox" name="consent" required className="mt-0.5 h-4 w-4 accent-brand-700" />
-          <span>The farmer agreed that Soko Baringo may keep their name and phone number to sell their produce and pay them.</span>
-        </label>
         <SubmitButton className="btn w-full">Save farmer</SubmitButton>
       </ActionForm>
 

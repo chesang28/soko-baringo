@@ -167,7 +167,7 @@ export default async function HomePage() {
           </div>
           <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
             <h3 className="mb-4 text-lg font-semibold">{t.sellSection.formTitle}</h3>
-            <FarmerLeadForm t={t.lead} consent={t.consent} />
+            <FarmerLeadForm t={t.lead} />
           </div>
         </div>
       </section>

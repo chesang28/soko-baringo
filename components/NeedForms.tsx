@@ -3,7 +3,6 @@ import { useActionState, useState } from "react";
 import { postNeed, respondToNeed } from "@/app/needs/actions";
 import type { Dict } from "@/lib/i18n";
 import { UNITS, type Product } from "@/lib/types";
-import { ConsentBox } from "./ConsentBox";
 import { CheckIcon } from "./Icons";
 import { SubmitButton } from "./SubmitButton";
 
@@ -15,7 +14,7 @@ const Done = ({ text }: { text: string }) => (
 );
 const Honeypot = () => <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />;
 
-export function PostNeedForm({ products, t, consent }: { products: Product[]; t: Dict["needs"]; consent: string }) {
+export function PostNeedForm({ products, t }: { products: Product[]; t: Dict["needs"] }) {
   const [state, action] = useActionState(postNeed, null);
   const [pid, setPid] = useState(products[0]?.id ?? 0);
   const [unitV, setUnitV] = useState<string>(products[0]?.default_unit ?? "kg");
@@ -48,14 +47,13 @@ export function PostNeedForm({ products, t, consent }: { products: Product[]; t:
       <div><label className="label" htmlFor="n-phone">{t.phone}</label><input className="input" id="n-phone" name="phone" type="tel" inputMode="tel" placeholder="0712 345 678" required /></div>
       <div><label className="label" htmlFor="n-org">{t.business} <span className="font-normal text-gray-400">{t.optional}</span></label><input className="input" id="n-org" name="organisation" /></div>
       <div className="sm:col-span-2"><label className="label" htmlFor="n-note">{t.note} <span className="font-normal text-gray-400">{t.optional}</span></label><textarea className="input" id="n-note" name="note" rows={2} maxLength={500} /></div>
-      <div className="sm:col-span-2"><ConsentBox id="need-consent" text={consent} /></div>
       {state && !state.ok && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{state.message}</p>}
       <div className="sm:col-span-2"><SubmitButton className="btn w-full py-3">{t.submit}</SubmitButton></div>
     </form>
   );
 }
 
-export function RespondForm({ needId, unit, t, consent }: { needId: string; unit: string; t: Dict["needs"]; consent: string }) {
+export function RespondForm({ needId, unit, t }: { needId: string; unit: string; t: Dict["needs"] }) {
   const [state, action] = useActionState(respondToNeed, null);
   if (state?.ok) return <Done text={t.offerSent} />;
   return (
@@ -66,7 +64,6 @@ export function RespondForm({ needId, unit, t, consent }: { needId: string; unit
       <div><label className="label" htmlFor={`r-phone-${needId}`}>{t.phone}</label><input className="input" id={`r-phone-${needId}`} name="phone" type="tel" inputMode="tel" placeholder="0712 345 678" required /></div>
       <div><label className="label" htmlFor={`r-qty-${needId}`}>{t.quantity} ({unit})</label><input className="input" id={`r-qty-${needId}`} name="quantity" type="number" min="0.01" step="0.01" required /></div>
       <div><label className="label" htmlFor={`r-price-${needId}`}>{t.yourPrice}</label><input className="input" id={`r-price-${needId}`} name="price" type="number" min="1" step="1" /></div>
-      <div className="sm:col-span-2"><ConsentBox id={`r-consent-${needId}`} text={consent} /></div>
       {state && !state.ok && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{state.message}</p>}
       <div className="sm:col-span-2"><SubmitButton className="btn w-full">{t.offer}</SubmitButton></div>
     </form>

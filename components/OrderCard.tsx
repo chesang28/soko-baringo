@@ -2,20 +2,18 @@ import { ActionForm } from "@/components/ActionForm";
 import { CheckIcon } from "@/components/Icons";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SubmitButton } from "@/components/SubmitButton";
-import { cancelOrder, confirmOrder, markDelivered, recordPayment, recordRejection, repeatOrder, updateOrder } from "@/app/admin/actions";
-import { PhotoInput } from "./PhotoInput";
-import { siteUrl } from "@/lib/site";
+import { cancelOrder, confirmOrder, markDelivered, recordPayment, repeatOrder, updateOrder } from "@/app/admin/actions";
 import { displayPhone, formatDate, formatKes, formatQty, orderRef, whatsappLink } from "@/lib/format";
 import { productVisual } from "@/lib/products";
 import { ORDER_STATUSES, type OrderBalance } from "@/lib/types";
 import { DeliveryFields } from "./DeliveryFields";
 
-export type Step = "confirm" | "deposit" | "deliver" | "buyer" | "farmer" | "driver" | "done" | "cancelled";
+export type Step = "confirm" | "deliver" | "buyer" | "farmer" | "driver" | "done" | "cancelled";
 
 export function currentStep(b: OrderBalance): Step {
   if (b.status === "cancelled") return "cancelled";
   if (b.status === "new" || b.status === "contacted") return "confirm";
-  if (b.status === "confirmed") return b.deposit_required_kes > b.received_kes ? "deposit" : "deliver";
+  if (b.status === "confirmed") return "deliver";
   if (b.buyer_owes_kes > 0) return "buyer";
   if (b.farmer_owed_kes > 0) return "farmer";
   if (b.driver_owed_kes > 0) return "driver";
@@ -56,8 +54,7 @@ export function OrderCard({ b }: { b: OrderBalance }) {
 
   const steps: { key: Step; label: string; done: boolean; detail?: string }[] = [
     { key: "confirm", label: "Confirmed with buyer", done: !["confirm", "cancelled"].includes(step), detail: `${formatKes(b.total_kes)}${b.delivery_fee_kes ? ` + ${formatKes(b.delivery_fee_kes)} delivery` : ""}` },
-    ...(b.deposit_required_kes > 0 ? [{ key: "deposit" as Step, label: "Deposit received", done: b.received_kes >= b.deposit_required_kes, detail: formatKes(Math.min(b.received_kes, b.deposit_required_kes)) }] : []),
-    { key: "deliver", label: "Delivered", done: ["buyer", "farmer", "driver", "done"].includes(step), detail: hired ? `by ${b.driver_name ?? "driver"} (costs ${formatKes(b.driver_cost_kes)})` : "buyer collected" },
+    { key: "deliver", label: "Delivered", done: ["buyer", "farmer", "driver", "done"].includes(step), detail: hired ? `by ${b.driver_name ?? "driver"} (costs ${formatKes(b.transport_cost_kes)})` : "buyer collected" },
     { key: "buyer", label: "Buyer paid you", done: ["farmer", "driver", "done"].includes(step) || (b.received_kes >= due && due > 0), detail: formatKes(b.received_kes) },
     { key: "farmer", label: `Paid farmer ${b.farmer_name}`, done: ["driver", "done"].includes(step) || (b.paid_out_kes >= b.farmer_share_kes && b.farmer_share_kes > 0), detail: formatKes(b.paid_out_kes) },
     ...(hired ? [{ key: "driver" as Step, label: `Paid driver ${b.driver_name ?? ""}`, done: step === "done", detail: formatKes(b.driver_paid_kes) }] : []),
@@ -90,26 +87,9 @@ export function OrderCard({ b }: { b: OrderBalance }) {
           {step !== "confirm" && (
             <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-sm">
               Buyer pays you <b>{formatKes(due)}</b> → farmer gets <b>{formatKes(b.farmer_share_kes)}</b>
-              {hired && <> → driver gets <b>{formatKes(b.driver_cost_kes)}</b></>}
+              {hired && <> → driver gets <b>{formatKes(b.transport_cost_kes)}</b></>}
               {" "}→ <b className="text-brand-800">you keep {formatKes(b.profit_kes)}</b>
             </p>
-          )}
-
-          {b.rejected_qty > 0 && (
-            <p className="mt-2 rounded-lg bg-orange-50 px-3 py-2 text-sm text-orange-900">
-              ↩ Buyer rejected {formatQty(b.rejected_qty)} {b.unit} (worth {formatKes(b.rejection_value_kes)}), with the loss borne by
-              <b> {b.rejection_cost_by === "soko" ? "Soko Baringo" : b.rejection_cost_by}</b>{b.rejection_note ? `: “${b.rejection_note}”` : ""}
-              {b.rejection_photo_path && <> · <a className="underline" target="_blank" rel="noopener noreferrer" href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/listing-photos/${b.rejection_photo_path}`}>photo</a></>}
-            </p>
-          )}
-          {b.received_kes > due && (
-            <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">⚠ The buyer paid {formatKes(b.received_kes - due)} more than they owe. Refund them.</p>
-          )}
-          {b.paid_out_kes > 0 && (
-            <a className="mt-2 inline-block text-sm text-brand-700 underline" target="_blank" rel="noopener noreferrer"
-               href={whatsappLink(b.farmer_phone, `Habari ${b.farmer_name.split(" ")[0]}! Soko Baringo has paid you KES ${b.paid_out_kes.toLocaleString("en-KE")} for ${item} (${orderRef(b.order_id)}). See all your sales and payments here: ${siteUrl()}/p/${b.passbook_token}`)}>
-              📲 Send payment receipt to {b.farmer_name.split(" ")[0]} on WhatsApp
-            </a>
           )}
 
           {/* Checklist */}
@@ -138,26 +118,15 @@ export function OrderCard({ b }: { b: OrderBalance }) {
                   <label className="flex flex-col gap-1 text-xs text-gray-600">Delivery fee buyer pays (KES)
                     <input className="input w-40" name="delivery_fee_kes" type="number" min="0" step="1" defaultValue={b.delivery_fee_kes || 0} />
                   </label>
-                  <label className="flex flex-col gap-1 text-xs text-gray-600">Deposit before delivery (KES)
-                    <input className="input w-40" name="deposit_required_kes" type="number" min="0" step="1" defaultValue={b.deposit_required_kes || 0} />
-                  </label>
                   <SubmitButton className="btn">✓ Confirm order</SubmitButton>
                 </div>
-                <p className="text-xs text-gray-500">Put 0 for delivery if the buyer collects. Ask for a deposit on big orders, new buyers or institutions, so you never pay the farmer before the buyer pays. Commission is worked out automatically.</p>
+                <p className="text-xs text-gray-500">Put 0 for delivery if the buyer collects. Your 5% commission is worked out automatically.</p>
               </ActionForm>
-            )}
-
-            {step === "deposit" && (
-              <div className="space-y-2">
-                <p className="font-semibold">Step 2 · Collect the deposit before delivering</p>
-                <PayForm orderId={b.order_id} direction="from_buyer" amount={b.deposit_required_kes - b.received_kes} label="✓ Record deposit received"
-                         who={`Ask ${b.buyer_name} to send ${formatKes(b.deposit_required_kes - b.received_kes)} by M-Pesa. Check it in your M-Pesa app before recording it.`} />
-              </div>
             )}
 
             {step === "deliver" && (
               <ActionForm action={markDelivered} resetOnSuccess={false} className="space-y-2">
-                <p className="font-semibold">Step {b.deposit_required_kes > 0 ? 3 : 2} · Deliver the produce</p>
+                <p className="font-semibold">Step 2 · Deliver the produce</p>
                 <input type="hidden" name="id" value={b.order_id} />
                 <DeliveryFields defaultFee={b.delivery_fee_kes} />
                 <SubmitButton className="btn">🚚 Mark as delivered</SubmitButton>
@@ -166,8 +135,7 @@ export function OrderCard({ b }: { b: OrderBalance }) {
 
             {step === "buyer" && (
               <div className="space-y-2">
-                <p className="font-semibold">Collect payment from the buyer</p>
-                <p className="text-xs text-gray-500">⚠ Only record money you can see in your M-Pesa app, never from an SMS or screenshot the buyer sends.</p>
+                <p className="font-semibold">Step 3 · Collect payment from the buyer</p>
                 <PayForm orderId={b.order_id} direction="from_buyer" amount={b.buyer_owes_kes} label="✓ Record payment received"
                          who={`${b.buyer_name} owes ${formatKes(b.buyer_owes_kes)}${b.received_kes ? ` (already paid ${formatKes(b.received_kes)})` : ""}.`} />
               </div>
@@ -175,7 +143,7 @@ export function OrderCard({ b }: { b: OrderBalance }) {
 
             {step === "farmer" && (
               <div className="space-y-2">
-                <p className="font-semibold">Pay the farmer (same day builds trust)</p>
+                <p className="font-semibold">Step 4 · Pay the farmer</p>
                 <PayForm orderId={b.order_id} direction="to_farmer" amount={b.farmer_owed_kes} label="✓ Record payment to farmer"
                          who={`Send ${formatKes(b.farmer_owed_kes)} to ${b.farmer_name} (${displayPhone(b.farmer_phone)}).`} />
               </div>
@@ -183,7 +151,7 @@ export function OrderCard({ b }: { b: OrderBalance }) {
 
             {step === "driver" && (
               <div className="space-y-2">
-                <p className="font-semibold">Pay the driver</p>
+                <p className="font-semibold">Step 5 · Pay the driver</p>
                 <PayForm orderId={b.order_id} direction="to_driver" amount={b.driver_owed_kes} label="✓ Record payment to driver"
                          who={`Send ${formatKes(b.driver_owed_kes)} to ${b.driver_name ?? "the driver"}${b.driver_phone ? ` (${displayPhone(b.driver_phone)})` : ""}.`} />
               </div>
@@ -207,28 +175,6 @@ export function OrderCard({ b }: { b: OrderBalance }) {
               <SubmitButton className="btn-ghost">🔁 Repeat this order</SubmitButton>
             </ActionForm>
           </div>
-          {(b.status === "delivered" || b.status === "paid") && b.rejected_qty === 0 && (
-            <ActionForm action={recordRejection} resetOnSuccess={false} className="space-y-2 rounded-lg bg-white p-3 ring-1 ring-orange-200">
-              <p className="text-xs font-semibold text-orange-800">↩ Buyer rejected some or all of the produce?</p>
-              <input type="hidden" name="id" value={b.order_id} />
-              <div className="flex flex-wrap items-end gap-2">
-                <label className="flex flex-col gap-1 text-xs text-gray-600">Quantity rejected ({b.unit})
-                  <input className="input w-28 py-1 text-sm" name="rejected_qty" type="number" min="0.01" step="0.01" max={b.quantity} required />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-gray-600">Who bears the loss?
-                  <select className="input py-1 text-sm" name="rejection_cost_by" defaultValue="farmer">
-                    <option value="farmer">Farmer (poor quality at pickup)</option>
-                    {hired && <option value="transporter">Transporter (damaged on the way)</option>}
-                    <option value="soko">Soko Baringo (our mistake)</option>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-gray-600">Reason<input className="input w-48 py-1 text-sm" name="rejection_note" maxLength={500} placeholder="e.g. 3 crates bruised" /></label>
-              </div>
-              <div><span className="text-xs text-gray-600">Photo as evidence (recommended)</span><PhotoInput name="rejection_photo_path" folder="rejections" /></div>
-              <SubmitButton className="btn-ghost">Record rejection</SubmitButton>
-              <p className="text-[11px] text-gray-500">The buyer pays only for what they accepted. Agree the rule with farmers and transporters before the first delivery, and use photos taken at pickup.</p>
-            </ActionForm>
-          )}
           {(b.status === "delivered" || b.status === "paid") && (
             <ActionForm action={markDelivered} resetOnSuccess={false} className="space-y-2 rounded-lg bg-white p-3 ring-1 ring-gray-200">
               <p className="text-xs font-semibold text-gray-600">Change delivery details (e.g. add a driver you paid)</p>

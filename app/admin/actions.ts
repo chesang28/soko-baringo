@@ -65,9 +65,7 @@ export async function createFarmer(_prev: FormState, fd: FormData): Promise<Form
       village: str(fd, "village", { max: 80, required: false }),
       group_name: str(fd, "group_name", { max: 120, required: false }),
       notes: str(fd, "notes", { max: 1000, required: false }),
-      consent_at: fd.get("consent") === "on" ? new Date().toISOString() : null,
     };
-    if (!row.consent_at) throw new ValidationError("Ask the farmer for permission to keep their details, then tick the box.");
     const supabase = await requireAdmin();
     const { error } = await supabase.from("farmers").insert(row);
     if (error) throw new Error(error.message);
@@ -170,7 +168,7 @@ export async function updateSettings(_prev: FormState, fd: FormData): Promise<Fo
     const supabase = await requireOwner();
     const { error } = await supabase
       .from("settings")
-      .update({ commission_rate: Math.round(percent * 100) / 10000, agent_phone, min_commission_kes: optionalInt(fd, "min_commission_kes") ?? 0 })
+      .update({ commission_rate: Math.round(percent * 100) / 10000, agent_phone })
       .eq("id", true);
     if (error) throw new Error(error.message);
     revalidatePath("/", "layout");
@@ -344,10 +342,8 @@ export async function confirmOrder(_prev: FormState, fd: FormData): Promise<Form
       status: "confirmed",
       agreed_total_kes: optionalInt(fd, "agreed_total_kes"),
       delivery_fee_kes: optionalInt(fd, "delivery_fee_kes") ?? 0,
-      deposit_required_kes: optionalInt(fd, "deposit_required_kes") ?? 0,
     };
     if (patch.agreed_total_kes === null) throw new ValidationError("Enter the agreed price.");
-    if (patch.deposit_required_kes > patch.agreed_total_kes + patch.delivery_fee_kes) throw new ValidationError("Deposit can't be more than the order total.");
     const supabase = await requireAdmin();
     const { error } = await supabase.from("orders").update(patch).eq("id", id);
     if (error) throw new Error(error.message);
@@ -483,68 +479,5 @@ export async function createOrderFromNeed(_prev: FormState, fd: FormData): Promi
     return `Order ${orderRef(created.id)} created for ${need.buyer_name}: ${quantity} ${listing.unit} @ ${formatKes(listing.price_per_unit_kes)}. ` +
       (covered ? "Request fully covered and marked matched ✓" : `${remaining} ${need.unit} still needed. The request stays open.`) +
       " Find it in Orders → To do.";
-  });
-}
-
-// ─── Crop focus ─────────────────────────────────────────────────────────
-export async function setCropActive(fd: FormData): Promise<void> {
-  const id = num(fd, "product_id", { integer: true, max: 32767 });
-  const supabase = await requireOwner();
-  const { error } = await supabase.from("products").update({ active: fd.get("active") === "true" }).eq("id", id);
-  if (error) throw new Error(error.message);
-  revalidatePath("/", "layout");
-}
-
-// ─── Rejections ─────────────────────────────────────────────────────────
-const COST_BY = ["farmer", "transporter", "soko"] as const;
-/**
- * Buyer refused part of a delivery. The buyer only pays for what they accepted.
- *  - farmer bears it:      farmer is paid only for accepted produce.
- *  - transporter bears it: farmer is paid in full; the value is deducted from the driver's fee.
- *  - Soko bears it:        farmer is paid in full; the loss comes out of your income.
- */
-export async function recordRejection(_prev: FormState, fd: FormData): Promise<FormState> {
-  return run(async () => {
-    const id = uuid(fd, "id");
-    const rejected = num(fd, "rejected_qty", { max: 10_000_000 });
-    const costBy = String(fd.get("rejection_cost_by"));
-    if (!(COST_BY as readonly string[]).includes(costBy)) throw new ValidationError("Choose who bears the loss.");
-    const photo = String(fd.get("rejection_photo_path") ?? "").trim();
-    if (photo && !/^rejections\/[0-9a-f-]{36}\.(jpg|png|webp)$/.test(photo)) throw new ValidationError("Invalid photo.");
-    const note = str(fd, "rejection_note", { max: 500, required: false });
-
-    const supabase = await requireAdmin();
-    const { data: o, error: e1 } = await supabase.from("orders")
-      .select("status, quantity, agreed_total_kes, commission_kes, transport_cost_kes, delivery_method, rejected_qty").eq("id", id).single();
-    if (e1 || !o) throw new ValidationError("Order not found.");
-    if (!["delivered", "paid"].includes(o.status)) throw new ValidationError("Mark the order delivered first.");
-    if (Number(o.rejected_qty) > 0) throw new ValidationError("A rejection is already recorded for this order.");
-    if (rejected > Number(o.quantity)) throw new ValidationError(`Only ${o.quantity} were delivered.`);
-    if (costBy === "transporter" && o.delivery_method !== "hired") throw new ValidationError("No hired transporter on this order.");
-
-    const oldTotal = o.agreed_total_kes ?? 0;
-    const oldShare = oldTotal - (o.commission_kes ?? 0);
-    const value = Math.round((oldTotal / Number(o.quantity)) * rejected);
-    const newTotal = oldTotal - value;
-
-    // Commission is recalculated by the DB trigger from the new total.
-    const { data: upd, error: e2 } = await supabase.from("orders")
-      .update({ agreed_total_kes: newTotal, rejected_qty: rejected, rejection_value_kes: value, rejection_cost_by: costBy,
-                rejection_note: note, rejection_photo_path: photo || null })
-      .eq("id", id).select("agreed_total_kes, commission_kes").single();
-    if (e2 || !upd) throw new Error(e2?.message ?? "update failed");
-
-    const newShare = (upd.agreed_total_kes ?? 0) - (upd.commission_kes ?? 0);
-    const extra = costBy === "farmer" ? 0 : Math.max(oldShare - newShare, 0);
-    const deduction = costBy === "transporter" ? Math.min(value, o.transport_cost_kes) : 0;
-    const { error: e3 } = await supabase.from("orders").update({ farmer_extra_kes: extra, driver_deduction_kes: deduction }).eq("id", id);
-    if (e3) throw new Error(e3.message);
-    await supabase.rpc("orders_auto_paid", { p_order_id: id }); // buyer may now have paid in full
-
-    revalidateOrders();
-    const who = costBy === "farmer" ? "The farmer's payment is reduced."
-      : costBy === "transporter" ? `KES ${deduction.toLocaleString("en-KE")} is deducted from the driver's fee${value > deduction ? ` (KES ${(value - deduction).toLocaleString("en-KE")} more than his fee: collect it from him separately)` : ""}. The farmer is paid in full.`
-      : "The farmer is paid in full and the loss comes out of your income.";
-    return `Rejection recorded: ${rejected} worth KES ${value.toLocaleString("en-KE")}. The buyer now pays KES ${newTotal.toLocaleString("en-KE")}. ${who}`;
   });
 }

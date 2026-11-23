@@ -35,7 +35,7 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
           <p className="mt-2 font-semibold">{t.listings.none}</p>
           <p className="text-sm text-gray-600">{t.listings.noneSub}</p>
           {active ? (
-            <div className="mt-6 border-t pt-6"><StockAlertForm productId={active.id} productName={active.name} t={t.alert} consent={t.consent} /></div>
+            <div className="mt-6 border-t pt-6"><StockAlertForm productId={active.id} productName={active.name} t={t.alert} /></div>
           ) : (
             <Link href="/needs#post" className="btn mt-4">{t.bulk.cta}</Link>
           )}

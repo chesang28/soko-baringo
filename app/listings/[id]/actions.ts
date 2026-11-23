@@ -4,7 +4,7 @@ import { formatKes, orderRef } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { notifyAgent, siteUrl, tgEscape } from "@/lib/telegram";
 import type { FormState } from "@/lib/types";
-import { ValidationError, num, phone, requireConsent, str, uuid } from "@/lib/validation";
+import { ValidationError, num, phone, str, uuid } from "@/lib/validation";
 
 const DB_ERRORS: Record<string, string> = {
   LISTING_UNAVAILABLE: "Sorry, this produce is no longer available.",
@@ -17,7 +17,6 @@ export async function requestOrder(_prev: FormState, fd: FormData): Promise<Form
   if (fd.get("website")) return { ok: false, message: "Could not send request." };
 
   try {
-    requireConsent(fd);
     const input = {
       p_listing_id: uuid(fd, "listing_id"),
       p_buyer_name: str(fd, "name", { min: 2, max: 120 })!,

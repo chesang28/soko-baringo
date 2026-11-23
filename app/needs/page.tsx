@@ -45,7 +45,7 @@ export default async function NeedsPage() {
                 </div>
                 <details className="mt-3">
                   <summary className="btn-ghost cursor-pointer list-none justify-center">{n.supply}</summary>
-                  <RespondForm needId={x.id} unit={x.unit} t={n} consent={t.consent} />
+                  <RespondForm needId={x.id} unit={x.unit} t={n} />
                 </details>
               </article>
             );
@@ -56,7 +56,7 @@ export default async function NeedsPage() {
       <section id="post" className="scroll-mt-24 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-200 sm:p-8">
         <h2 className="text-2xl font-bold">{n.post}</h2>
         <p className="mb-5 mt-1 text-gray-600">{t.bulk.body}</p>
-        <PostNeedForm products={products} t={n} consent={t.consent} />
+        <PostNeedForm products={products} t={n} />
       </section>
       <WhatsAppFab phone={stats.agent_phone} label={t.chat} />
     </div>
