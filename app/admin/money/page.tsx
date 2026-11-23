@@ -2,6 +2,7 @@ import { ActionForm } from "@/components/ActionForm";
 import { RevenueChart } from "@/components/RevenueChart";
 import { SubmitButton } from "@/components/SubmitButton";
 import { payFarmer } from "../actions";
+import { siteUrl } from "@/lib/site";
 import { displayPhone, formatDate, formatKes, orderRef, whatsappLink } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import type { DailyRevenue, OrderBalance, Payment } from "@/lib/types";
@@ -58,7 +59,7 @@ export default async function MoneyPage() {
 
   // Group balances by person.
   const buyers = new Map<string, { name: string; phone: string; owes: number; orders: number }>();
-  const farmers = new Map<string, { id: string; name: string; phone: string; owed: number; orders: number }>();
+  const farmers = new Map<string, { id: string; name: string; phone: string; owed: number; orders: number; token: string }>();
   const drivers = new Map<string, { name: string; phone: string | null; owed: number; orders: number }>();
   for (const b of balances) {
     if (b.buyer_owes_kes > 0) {
@@ -66,7 +67,7 @@ export default async function MoneyPage() {
       g.owes += b.buyer_owes_kes; g.orders += 1; buyers.set(b.buyer_phone, g);
     }
     if (b.farmer_owed_kes > 0) {
-      const g = farmers.get(b.farmer_id) ?? { id: b.farmer_id, name: b.farmer_name, phone: b.farmer_phone, owed: 0, orders: 0 };
+      const g = farmers.get(b.farmer_id) ?? { id: b.farmer_id, name: b.farmer_name, phone: b.farmer_phone, owed: 0, orders: 0, token: b.passbook_token };
       g.owed += b.farmer_owed_kes; g.orders += 1; farmers.set(b.farmer_id, g);
     }
     if (b.driver_owed_kes > 0) {
@@ -168,6 +169,8 @@ export default async function MoneyPage() {
                       <label className="flex flex-col gap-1 text-xs text-gray-600">M-Pesa code<input className="input w-28 py-1 text-sm" name="reference" maxLength={60} /></label>
                       <SubmitButton className="btn px-3 py-1.5 text-sm">Record</SubmitButton>
                     </ActionForm>
+                    <a className="mt-1 inline-block text-xs text-brand-700 underline" target="_blank" rel="noopener noreferrer"
+                       href={whatsappLink(f.phone, `Habari ${f.name.split(" ")[0]}! Soko Baringo has sent your payment. See all your sales and payments here: ${siteUrl()}/p/${f.token}`)}>📲 After paying, send receipt + passbook</a>
                   </details>
                 </li>
               ))}

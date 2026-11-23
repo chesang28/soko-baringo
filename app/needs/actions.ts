@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { notifyAgent, siteUrl, tgEscape } from "@/lib/telegram";
 import type { FormState } from "@/lib/types";
-import { ValidationError, num, phone, str, unit, uuid } from "@/lib/validation";
+import { ValidationError, num, phone, requireConsent, str, unit, uuid } from "@/lib/validation";
 
 const fail = (msg: string, map: Record<string, string>) => {
   const k = Object.keys(map).find((x) => msg.includes(x));
@@ -14,6 +14,7 @@ const fail = (msg: string, map: Record<string, string>) => {
 export async function postNeed(_prev: FormState, fd: FormData): Promise<FormState> {
   if (fd.get("website")) return { ok: false, message: "Could not send." };
   try {
+    requireConsent(fd);
     const maxRaw = String(fd.get("max_price") ?? "").trim();
     const input = {
       p_product_id: num(fd, "product_id", { integer: true, max: 32767 }),
@@ -31,7 +32,7 @@ export async function postNeed(_prev: FormState, fd: FormData): Promise<FormStat
     const { error } = await supabase.rpc("post_buyer_need", input);
     if (error) {
       console.error("post_buyer_need", error);
-      return fail(error.message, { RATE_LIMITED: "You've posted several requests today. Please try tomorrow.", INVALID_DATE: "Choose a date between today and one year ahead." });
+      return fail(error.message, { RATE_LIMITED: "You've posted several requests today. Please try tomorrow.", INVALID_DATE: "Choose a date between today and one year ahead.", PRODUCT_UNAVAILABLE: "We are not taking requests for this crop right now." });
     }
     const product = String(fd.get("product_name") ?? "").slice(0, 60);
     const { data: stock } = await supabase.from("listings").select("quantity, unit, price_per_unit_kes, location")
@@ -57,6 +58,7 @@ export async function postNeed(_prev: FormState, fd: FormData): Promise<FormStat
 export async function respondToNeed(_prev: FormState, fd: FormData): Promise<FormState> {
   if (fd.get("website")) return { ok: false, message: "Could not send." };
   try {
+    requireConsent(fd);
     const priceRaw = String(fd.get("price") ?? "").trim();
     const input = {
       p_need_id: uuid(fd, "need_id"),

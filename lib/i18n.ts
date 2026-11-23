@@ -97,6 +97,15 @@ const en = {
     title: "Get notified when it's in stock", sub: "Leave your number and we'll contact you as soon as a farmer lists it.",
     name: "Your name", phone: "Phone number", submit: "Notify me", done: "Done! We'll contact you when it's available.",
   },
+  consent: "I agree that Soko Baringo may keep my name and phone number to handle this request.",
+  privacy: "Privacy",
+  passbook: {
+    title: "Your Soko Baringo passbook", hello: "Hello", since: "Farmer since",
+    earned: "Earned (delivered)", paid: "Paid to you", owed: "Still to be paid", pending: "Confirmed, not yet delivered",
+    sales: "Your sales", payments: "Payments to you", none: "Nothing yet.", ref: "Ref", share: "Your share",
+    note: "This page is private to you. It updates automatically every time you sell or are paid. Keep the link safe.",
+    help: "Questions about a payment? Call or WhatsApp us.",
+  },
   chat: "Chat with us",
 };
 
@@ -196,6 +205,15 @@ const sw: Dict = {
   alert: {
     title: "Pata taarifa yakipatikana", sub: "Acha nambari yako na tutakujulisha mara tu mkulima atakapoorodhesha.",
     name: "Jina lako", phone: "Nambari ya simu", submit: "Nijulishe", done: "Tayari! Tutakujulisha yakipatikana.",
+  },
+  consent: "Ninakubali Soko Baringo ihifadhi jina na nambari yangu ya simu ili kushughulikia ombi hili.",
+  privacy: "Faragha",
+  passbook: {
+    title: "Kitabu chako cha Soko Baringo", hello: "Habari", since: "Mkulima tangu",
+    earned: "Mapato (yaliyofikishwa)", paid: "Umelipwa", owed: "Bado hujalipwa", pending: "Yamethibitishwa, bado kufikishwa",
+    sales: "Mauzo yako", payments: "Malipo kwako", none: "Bado hakuna.", ref: "Kumb.", share: "Sehemu yako",
+    note: "Ukurasa huu ni wako peke yako. Unasasishwa kila unapouza au kulipwa. Hifadhi kiungo hiki salama.",
+    help: "Una swali kuhusu malipo? Tupigie au tuandikie WhatsApp.",
   },
   chat: "Ongea nasi",
 };

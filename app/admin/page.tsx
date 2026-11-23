@@ -5,7 +5,8 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { formatDate, formatKes } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import type { Order } from "@/lib/types";
-import { updateSettings } from "./actions";
+import { setCropActive, updateSettings } from "./actions";
+import { productVisual } from "@/lib/products";
 
 export default async function AdminHome() {
   const supabase = await createClient();
@@ -18,7 +19,7 @@ export default async function AdminHome() {
     supabase.from("orders").select("id", head).eq("status", "new"),
     supabase.from("orders").select("id", head).eq("status", "new").lt("created_at", dayAgo),
     supabase.from("orders").select("commission_kes").eq("status", "paid"),
-    supabase.from("settings").select("commission_rate, agent_phone").maybeSingle(),
+    supabase.from("settings").select("commission_rate, agent_phone, min_commission_kes").maybeSingle(),
     supabase.from("orders")
       .select("id, buyer_name, quantity, status, created_at, listings(unit, products(name))")
       .order("created_at", { ascending: false }).limit(8),
@@ -26,6 +27,7 @@ export default async function AdminHome() {
     supabase.from("need_responses").select("id", head).eq("handled", false),
     supabase.rpc("is_owner"),
   ]);
+  const { data: crops } = await supabase.from("products").select("id, name, active").order("name");
 
   const earned = (earnings.data ?? []).reduce((s, o) => s + (o.commission_kes ?? 0), 0);
   const ratePercent = Number(settings.data?.commission_rate ?? 0.05) * 100;
@@ -93,6 +95,11 @@ export default async function AdminHome() {
           <input className="input" id="commission_percent" name="commission_percent" type="number" min="0" max="50" step="0.1" defaultValue={ratePercent} />
         </div>
         <div>
+          <label className="label" htmlFor="min_commission_kes">Minimum fee per order (KES)</label>
+          <input className="input" id="min_commission_kes" name="min_commission_kes" type="number" min="0" step="10" defaultValue={settings.data?.min_commission_kes ?? 0} />
+          <p className="mt-1 text-xs text-gray-500">You earn {ratePercent}% or this amount, whichever is higher, so small orders still cover your fare and airtime. Put 0 to switch it off.</p>
+        </div>
+        <div>
           <label className="label" htmlFor="agent_phone">Public WhatsApp number</label>
           <input className="input" id="agent_phone" name="agent_phone" type="tel" placeholder="0712 345 678"
                  defaultValue={settings.data?.agent_phone ? `0${String(settings.data.agent_phone).slice(3)}` : ""} />
@@ -100,6 +107,25 @@ export default async function AdminHome() {
         </div>
         <SubmitButton>Save settings</SubmitButton>
       </ActionForm>}
+
+      {owner.data && (
+        <div className="card">
+          <h2 className="font-semibold">Crops shown on the public site</h2>
+          <p className="mb-3 text-xs text-gray-500">Start with 2 to 3 crops you can reliably supply. Hidden crops disappear from the shop, buyer requests and prices, but you can still list them for existing customers.</p>
+          <div className="flex flex-wrap gap-2">
+            {(crops ?? []).map((c) => (
+              <form key={c.id} action={setCropActive}>
+                <input type="hidden" name="product_id" value={c.id} />
+                <input type="hidden" name="active" value={String(!c.active)} />
+                <SubmitButton className={`rounded-full px-3 py-1.5 text-sm ring-1 ${c.active ? "bg-brand-700 text-white ring-brand-700" : "bg-white text-gray-500 ring-gray-300 line-through"}`}>
+                  {productVisual(c.name).emoji} {c.name}
+                </SubmitButton>
+              </form>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-gray-500">Tap a crop to show or hide it. Green means it's shown publicly.</p>
+        </div>
+      )}
     </div>
   );
 }

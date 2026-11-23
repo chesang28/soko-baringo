@@ -3,11 +3,12 @@ import { after } from "next/server";
 import type { FormState } from "@/lib/types";
 import { notifyAgent, siteUrl, tgEscape } from "@/lib/telegram";
 import { createClient } from "@/lib/supabase/server";
-import { ValidationError, phone, str } from "@/lib/validation";
+import { ValidationError, phone, requireConsent, str } from "@/lib/validation";
 
 export async function requestFarmerVisit(_prev: FormState, fd: FormData): Promise<FormState> {
   if (fd.get("website")) return { ok: false, message: "Could not send." };
   try {
+    requireConsent(fd);
     const input = {
       p_name: str(fd, "name", { min: 2, max: 120 })!,
       p_phone: phone(fd, "phone"),

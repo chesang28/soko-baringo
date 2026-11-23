@@ -77,7 +77,7 @@ export default async function ListingPage({ params }: Props) {
         <div className="h-fit rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-200 lg:sticky lg:top-24">
           <h2 className="mb-4 text-xl font-bold">{t.detail.request}</h2>
           <OrderForm listingId={listing.id} product={name} unit={listing.unit} maxQty={Number(listing.quantity)}
-                     price={listing.price_per_unit_kes} agentPhone={stats.agent_phone} t={t.order} />
+                     price={listing.price_per_unit_kes} agentPhone={stats.agent_phone} t={t.order} consent={t.consent} />
         </div>
       </div>
       <WhatsAppFab phone={stats.agent_phone} label={t.chat} />

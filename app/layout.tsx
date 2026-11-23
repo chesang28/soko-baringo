@@ -66,6 +66,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <li><Link href="/listings" className="hover:text-brand-700">{t.footer.browse}</Link></li>
                 <li><Link href="/needs" className="hover:text-brand-700">{t.footer.post}</Link></li>
                 <li><Link href="/#faq" className="hover:text-brand-700">{t.footer.payment}</Link></li>
+                <li><Link href="/privacy" className="hover:text-brand-700">{t.privacy}</Link></li>
               </ul>
             </div>
             <div>

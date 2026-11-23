@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/PrintButton";
-import { displayPhone, formatDate, formatKes, formatQty, isUuid, orderRef } from "@/lib/format";
+import { displayPhone, formatDate, formatKes, formatQty, isUuid, orderRef, whatsappLink } from "@/lib/format";
+import { siteUrl } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
 import type { OrderBalance, Payment } from "@/lib/types";
 
@@ -32,7 +33,14 @@ export default async function FarmerStatement({ params }: { params: Promise<{ id
     <div className="mx-auto max-w-3xl">
       <div className="mb-4 flex justify-between print:hidden">
         <Link href="/admin/farmers" className="text-sm text-brand-700">← Farmers</Link>
-        <PrintButton label="Print statement" />
+        <div className="flex gap-2">
+          <a className="btn-ghost" target="_blank" rel="noopener noreferrer"
+             href={whatsappLink(farmer.phone, `Habari ${farmer.full_name.split(" ")[0]}! This is your Soko Baringo passbook. It shows all your sales and every payment we make you. Keep this link: ${siteUrl()}/p/${farmer.passbook_token}`)}>
+            📒 Send passbook on WhatsApp
+          </a>
+          <a className="btn-ghost" target="_blank" rel="noopener noreferrer" href={`/p/${farmer.passbook_token}`}>View passbook</a>
+          <PrintButton label="Print statement" />
+        </div>
       </div>
       <div className="rounded-2xl bg-white p-8 ring-1 ring-gray-200 print:ring-0">
         <div className="flex items-start justify-between">

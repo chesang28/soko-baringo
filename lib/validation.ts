@@ -61,3 +61,7 @@ export const listingStatus = oneOf<ListingStatus>(LISTING_STATUSES, "listing sta
 export const orderStatus = oneOf<OrderStatus>(ORDER_STATUSES, "order status");
 
 const label = (key: string) => key.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+
+export function requireConsent(fd: FormData): void {
+  if (fd.get("consent") !== "on") throw new ValidationError("Please tick the box to agree before sending.");
+}
