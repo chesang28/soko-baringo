@@ -4,12 +4,13 @@ import { useActionState, useState } from "react";
 import { requestOrder } from "@/app/listings/[id]/actions";
 import type { Dict } from "@/lib/i18n";
 import { formatKes, orderRef, whatsappLink } from "@/lib/format";
+import { ConsentBox } from "./ConsentBox";
 import { CheckIcon } from "./Icons";
 import { SubmitButton } from "./SubmitButton";
 
-type Props = { listingId: string; product: string; unit: string; maxQty: number; price: number; agentPhone: string | null; t: Dict["order"] };
+type Props = { listingId: string; product: string; unit: string; maxQty: number; price: number; agentPhone: string | null; t: Dict["order"]; consent: string };
 
-export function OrderForm({ listingId, product, unit, maxQty, price, agentPhone, t }: Props) {
+export function OrderForm({ listingId, product, unit, maxQty, price, agentPhone, t, consent }: Props) {
   const [state, action] = useActionState(requestOrder, null);
   const [qty, setQty] = useState("");
   const estimate = Number(qty) > 0 ? Math.round(Number(qty) * price) : 0;
@@ -81,6 +82,7 @@ export function OrderForm({ listingId, product, unit, maxQty, price, agentPhone,
         <label className="label" htmlFor="note">{t.note} <span className="font-normal text-gray-400">{t.optional}</span></label>
         <textarea className="input" id="note" name="note" rows={2} maxLength={500} placeholder={t.notePh} />
       </div>
+      <ConsentBox id="order-consent" text={consent} />
       {state && !state.ok && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.message}</p>}
       <SubmitButton className="btn w-full py-3 text-lg">{t.send}</SubmitButton>
       <p className="text-center text-xs text-gray-500">{t.noPay}</p>

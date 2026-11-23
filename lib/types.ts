@@ -92,7 +92,17 @@ export type OrderBalance = {
   transport_cost_kes: number;
   driver_paid_kes: number;
   driver_owed_kes: number;
+  driver_cost_kes: number;
   profit_kes: number;
+  passbook_token: string;
+  deposit_required_kes: number;
+  rejected_qty: number;
+  rejection_value_kes: number;
+  rejection_cost_by: "farmer" | "transporter" | "soko" | null;
+  rejection_note: string | null;
+  rejection_photo_path: string | null;
+  farmer_extra_kes: number;
+  driver_deduction_kes: number;
   received_kes: number;
   paid_out_kes: number;
   buyer_owes_kes: number;

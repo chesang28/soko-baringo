@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Listing, Product } from "@/lib/types";
 
 const LISTING_COLUMNS =
-  "id, farmer_id, product_id, quantity, unit, price_per_unit_kes, location, description, available_from, status, created_at, photo_path, grade, products(name)";
+  "id, farmer_id, product_id, quantity, unit, price_per_unit_kes, location, description, available_from, status, created_at, photo_path, grade, products!inner(name)";
 
 export async function getProducts(): Promise<Product[]> {
   const supabase = await createClient();

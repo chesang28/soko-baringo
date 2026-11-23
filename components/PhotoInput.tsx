@@ -19,17 +19,17 @@ async function compress(file: File): Promise<Blob> {
   );
 }
 
-export async function uploadListingPhoto(file: File): Promise<string> {
+export async function uploadListingPhoto(file: File, folder: "listings" | "rejections" = "listings"): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("Please choose a photo.");
   const blob = await compress(file);
-  const path = `listings/${crypto.randomUUID()}.jpg`;
+  const path = `${folder}/${crypto.randomUUID()}.jpg`;
   const { error } = await createClient().storage.from(PHOTO_BUCKET).upload(path, blob, { contentType: "image/jpeg", upsert: false });
   if (error) throw new Error(error.message);
   return path;
 }
 
 /** File picker that uploads immediately and puts the storage path in a hidden form field. */
-export function PhotoInput({ name = "photo_path", onUploaded }: { name?: string; onUploaded?: (path: string) => void }) {
+export function PhotoInput({ name = "photo_path", folder = "listings", onUploaded }: { name?: string; folder?: "listings" | "rejections"; onUploaded?: (path: string) => void }) {
   const [path, setPath] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "error">("idle");
@@ -42,7 +42,7 @@ export function PhotoInput({ name = "photo_path", onUploaded }: { name?: string;
     setStatus("uploading"); setError("");
     setPreview(URL.createObjectURL(file));
     try {
-      const p = await uploadListingPhoto(file);
+      const p = await uploadListingPhoto(file, folder);
       setPath(p); setStatus("idle"); onUploaded?.(p);
     } catch (err) {
       setStatus("error"); setError(err instanceof Error ? err.message : "Upload failed"); setPath("");
